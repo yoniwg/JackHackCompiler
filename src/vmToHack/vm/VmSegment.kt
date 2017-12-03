@@ -6,39 +6,11 @@ import vmToHack.asm.*
 
 sealed class VmSegment {
 
-    abstract fun push() : Array<AsmLine>
-    abstract fun pop() : Array<AsmLine>
+    class Constant(val value: Int): VmSegment()
 
-    class Constant(private val value: Int): VmSegment(){
+    abstract class DynamicSeg(val segment: RamConstant, val offset: Int) : VmSegment()
 
-        override fun push() = increaseSpBy1 + setATo(value) + insertAToTopStack
-
-        override fun pop(): Array<AsmLine> {
-            throw NotImplementedError("pop is not allowed on constant")
-        }
-    }
-
-    abstract class DynamicSeg(private val segment: RamConstant, private val offset: Int) : VmSegment(){
-        override fun push(): Array<AsmLine> {
-            return increaseSpBy1 + setAToRamLocationValue(segment) + copyAToD + setATo(offset) +
-                    AsmLine.CCommand(AMReg.A, Comp.DOpReg(BinaryOpCode.ADD, AMReg.A)) +
-                    copyMToA + insertAToTopStack
-        }
-
-        override fun pop(): Array<AsmLine> {
-            TODO()
-        }
-    }
-
-    abstract class StaticSeg(private val staticLocation: StaticLocation) : VmSegment(){
-        override fun push(): Array<AsmLine> {
-            return arrayOf(setATo(staticLocation), copyMToA)
-        }
-
-        override fun pop(): Array<AsmLine> {
-            return arrayOf(copyAToD, setATo(staticLocation), copyDToM)
-        }
-    }
+    abstract class StaticSeg(val staticLocation: StaticLocation) : VmSegment()
 
     class Local(offset: Int) : DynamicSeg(RamConstant.LCL, offset)
 

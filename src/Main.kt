@@ -1,6 +1,4 @@
-import vmToHack.vm.TestWorkAround
-import vmToHack.vm.VmInit
-import vmToHack.vm.VmLine
+import vmToHack.vm.*
 import java.io.*
 
 var vmFile = File("in.vm")
@@ -24,35 +22,21 @@ fun main(args : Array<String>){
     }
     asmFile.delete()
     asmFile.createNewFile()
-    var i = 1
+
     val asmBW = asmFile.bufferedWriter()
-    initAsm(asmBW)
-    vmFile.forEachLine {
-        parseVmLine(it, i++, asmBW)
+    val vmCommands =
+            vmFile.bufferedReader()
+            .lineSequence()
+            .mapIndexedNotNull { i, it -> parseVmLine(it, i) }
+    val asmLines = VmToAsmCompiler.compile(vmCommands)
+    asmLines.forEach {
+        asmBW.write(it.getAsString())
+        asmBW.newLine()
     }
-    testWorkaround(asmBW)
     asmBW.close()
 }
 
-fun initAsm(asmBW: BufferedWriter) {
-    VmInit().getAssembly().forEach {
-        asmBW.write(it.getAsString())
-        asmBW.newLine()
-    }
-}
-
-fun parseVmLine(lineStr: String, index: Int, asmBW: BufferedWriter) {
-    if (lineStr.startsWith("//") || lineStr.trim().isEmpty()) return
-    VmLine(lineStr, index).generateAssembly().forEach {
-        asmBW.write(it.getAsString())
-        asmBW.newLine()
-    }
-}
-
-
-fun testWorkaround(asmBW: BufferedWriter) {
-    TestWorkAround().getAssembly().forEach {
-        asmBW.write(it.getAsString())
-        asmBW.newLine()
-    }
+fun parseVmLine(lineStr: String, index: Int): VmCommand? {
+    if (lineStr.startsWith("//") || lineStr.trim().isEmpty()) return null
+    return VmLine(lineStr, index).parseCommand()
 }

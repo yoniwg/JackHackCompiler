@@ -3,14 +3,12 @@ package vmToHack.vm
 import vmToHack.asm.AsmLine
 
 class VmLine (private val line : String, private val lineNumber : Int ) {
-    val lineElements = line.split(" ")
-    val command = lineElements[0]
 
-    fun generateAssembly() : Array<AsmLine>{
-        return parseCommand().createAsmLines()
-    }
+    private val lineElements = line.split(" ")
 
-    private fun parseCommand(): VmCommand {
+    private val command = lineElements[0]
+
+    fun parseCommand(): VmCommand {
         try {
             return when (command){
                 "push" -> VmCommand.Push(parseSegment(lineElements[1], lineElements[2]))
@@ -26,7 +24,7 @@ class VmLine (private val line : String, private val lineNumber : Int ) {
                 "lt" -> VmCommand.Lt()
                 else -> throw IllegalArgumentException(command + " is not a legal vm command")
             }
-        }catch (e : Exception){
+        } catch (e : Exception){
             throw IllegalArgumentException("line $lineNumber: $line, is illegal vm order: ${e.message}")
         }
     }
@@ -44,4 +42,5 @@ class VmLine (private val line : String, private val lineNumber : Int ) {
             else -> throw IllegalArgumentException("'$segmentStr' is not a legal vm segment")
         }
     }
+
 }
