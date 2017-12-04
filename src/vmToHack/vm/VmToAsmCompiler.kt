@@ -48,12 +48,20 @@ class VmToAsmCompiler private constructor() {
             increaseSpBy1 + setAToRamLocationValue(segment) + copyAToD + setATo(offset) +
                     AsmLine.CCommand(AMReg.A, Comp.DOpReg(BinaryOpCode.ADD, AMReg.A)) +
                     copyMToA + insertAToTopStack
-        is VmSegment.StaticSeg -> arrayOf(setATo(staticLocation), copyMToA)
+        is VmSegment.StaticSeg -> increaseSpBy1 + setATo(staticLocation) + copyMToD + setAToSpValue  + copyDToM
     }
     private fun VmSegment.pop() : Array<AsmLine> = when (this) {
         is VmSegment.Constant -> throw NotImplementedError("pop is not allowed on constant")
-        is VmSegment.DynamicSeg -> TODO()
-        is VmSegment.StaticSeg -> arrayOf(copyAToD, setATo(staticLocation), copyDToM)
+        is VmSegment.DynamicSeg ->
+            arrayOf(setATo(offset), copyAToD) +                                 // store offset in D
+                setAToRamLocationValue(segment) +                               // store first segment address in A
+                AsmLine.CCommand(D,Comp.DOpReg(BinaryOpCode.ADD, AMReg.A))+     // set D = D + A (segment address + offset)
+                setATo(RamConstant.R13) + copyDToM +                            // save in R13
+                setAToSpValue + copyMToD +                                      // pop stack to D
+                setAToRamLocationValue(RamConstant.R13) + copyDToM +             // set A to the stored address and set its value to D
+                decreaseSpBy1
+
+        is VmSegment.StaticSeg -> setAToSpValue + copyMToD + setATo(staticLocation) + copyDToM + decreaseSpBy1
     }
 
 

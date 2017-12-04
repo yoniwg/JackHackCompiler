@@ -20,6 +20,8 @@ sealed class VmSegment {
 
     class That(offset: Int) : DynamicSeg(RamConstant.THAT, offset)
 
+    class Pointer(offset: Int) : StaticSeg(PointerRam(offset))
+
     class Temp(offset: Int) : StaticSeg(TempRam(offset))
 
     class Static(offset: Int) : StaticSeg(StaticRam(offset))

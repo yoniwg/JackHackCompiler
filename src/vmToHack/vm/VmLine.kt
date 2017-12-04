@@ -1,7 +1,5 @@
 package vmToHack.vm
 
-import vmToHack.asm.AsmLine
-
 class VmLine (private val line : String, private val lineNumber : Int ) {
 
     private val lineElements = line.split(" ")
@@ -34,9 +32,10 @@ class VmLine (private val line : String, private val lineNumber : Int ) {
         return when (segmentStr){
             "constant" -> VmSegment.Constant(number)
             "local" -> VmSegment.Local(number)
-            "arg" -> VmSegment.Arg(number)
+            "argument" -> VmSegment.Arg(number)
             "this" -> VmSegment.This(number)
             "that" -> VmSegment.That(number)
+            "pointer" -> VmSegment.Pointer(number)
             "temp" -> VmSegment.Temp(number)
             "static" -> VmSegment.Static(number)
             else -> throw IllegalArgumentException("'$segmentStr' is not a legal vm segment")
