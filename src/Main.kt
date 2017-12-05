@@ -1,42 +1,48 @@
 import vmToHack.vm.*
 import java.io.*
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeFormatterBuilder
+import kotlin.system.measureTimeMillis
 
-var vmFile = File("in.vm")
-var asmFile = File("out.asm")
-
-fun main(args : Array<String>){
+fun main(args : Array<String>) {
     if (args.isEmpty() || args[0].matches(Regex("""[/-]\?|--help"""))) {
-        println("Usage: JackHack <filename> [out filename]")
+        println("Usage: JackHack <filename1.vm> [filename2.vm filename3.vm ...] [-o out-filename: default=filename.asm]")
         return
     }
-    vmFile = File(args[0])
+        val indexOfOutFile = args.indexOf("-o")
+        if (indexOfOutFile == 0) throw IllegalArgumentException("No vm file is provided")
+        val vmFiles = (if (indexOfOutFile == -1) args.toList() else args.filterIndexed { i, _ -> (i < indexOfOutFile) }).map { File(it) }
 
-    if (args.size > 1) {
-        asmFile = File(args[1])
-    }else{
-        asmFile = vmFile.absoluteFile.parentFile.resolve(vmFile.nameWithoutExtension + ".asm")
+        var asmFile = vmFiles[0].absoluteFile.parentFile.resolve(vmFiles[0].nameWithoutExtension + ".asm")
+        if (indexOfOutFile > 0) {
+            asmFile = File(args[indexOfOutFile + 1])
+        }
+
+        vmFiles.forEach { if (!it.exists()) throw IOException("No such file: " + it) }
+
+        asmFile.delete()
+        asmFile.createNewFile()
+
+    val millis = measureTimeMillis {
+        asmFile.bufferedWriter().use { asmBW ->
+            val vmCommands = vmFiles.asSequence().flatMap {
+                it.bufferedReader().lineSequence().mapIndexedNotNull { i, line ->
+                    parseVmLine(it.nameWithoutExtension, line, i)
+                }
+            }
+            val asmLines = VmToAsmCompiler.compile(vmCommands)
+            asmLines.forEach {
+                asmBW.write(it.getAsString())
+                asmBW.newLine()
+            }
+        }
     }
 
-    if (!vmFile.exists()){
-        throw IOException("No such file: " + vmFile)
-    }
-    asmFile.delete()
-    asmFile.createNewFile()
-
-    val asmBW = asmFile.bufferedWriter()
-    val vmCommands =
-            vmFile.bufferedReader()
-            .lineSequence()
-            .mapIndexedNotNull { i, it -> parseVmLine(it, i) }
-    val asmLines = VmToAsmCompiler.compile(vmCommands)
-    asmLines.forEach {
-        asmBW.write(it.getAsString())
-        asmBW.newLine()
-    }
-    asmBW.close()
+    println("$asmFile was created successfully in: $millis ms")
 }
 
-fun parseVmLine(lineStr: String, index: Int): VmCommand? {
+fun parseVmLine(fileName : String, lineStr: String, index: Int): VmCommand? {
     if (lineStr.startsWith("//") || lineStr.trim().isEmpty()) return null
-    return VmLine(lineStr, index).parseCommand()
+    return VmLine(fileName, lineStr, index).parseCommand()
 }

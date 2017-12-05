@@ -24,5 +24,5 @@ sealed class VmSegment {
 
     class Temp(offset: Int) : StaticSeg(TempRam(offset))
 
-    class Static(offset: Int) : StaticSeg(StaticRam(offset))
+    class Static(fileName : String, offset: Int) : StaticSeg(StaticRam(fileName, offset))
 }

@@ -1,8 +1,8 @@
 package vmToHack.vm
 
-class VmLine (private val line : String, private val lineNumber : Int ) {
+class VmLine (private val fileName : String, private val line : String, private val lineNumber : Int ) {
 
-    private val lineElements = line.split(" ")
+    private val lineElements = line.split(Regex("\\s"))
 
     private val command = lineElements[0]
 
@@ -20,6 +20,12 @@ class VmLine (private val line : String, private val lineNumber : Int ) {
                 "eq" -> VmCommand.Eq()
                 "gt" -> VmCommand.Gt()
                 "lt" -> VmCommand.Lt()
+                "label" -> VmCommand.Label(lineElements[1])
+                "goto" -> VmCommand.Goto(lineElements[1])
+                "if-goto" -> VmCommand.IfGoto(lineElements[1])
+                "function" -> VmCommand.Function(lineElements[1], lineElements[2].toInt())
+                "call" -> VmCommand.Call(lineElements[1], lineElements[2].toInt())
+                "return" -> VmCommand.Return()
                 else -> throw IllegalArgumentException(command + " is not a legal vm command")
             }
         } catch (e : Exception){
@@ -37,7 +43,7 @@ class VmLine (private val line : String, private val lineNumber : Int ) {
             "that" -> VmSegment.That(number)
             "pointer" -> VmSegment.Pointer(number)
             "temp" -> VmSegment.Temp(number)
-            "static" -> VmSegment.Static(number)
+            "static" -> VmSegment.Static(fileName, number)
             else -> throw IllegalArgumentException("'$segmentStr' is not a legal vm segment")
         }
     }

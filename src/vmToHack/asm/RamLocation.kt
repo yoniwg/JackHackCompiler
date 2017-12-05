@@ -17,6 +17,6 @@ class TempRam(offset : Int) : StaticLocation {
     override val location = "R${5 + offset}"
 }
 
-class StaticRam(offset : Int) : StaticLocation {
-    override val location = "${16 + offset}"
+class StaticRam(fileName : String, offset : Int) : StaticLocation {
+    override val location = "$fileName.$offset"
 }

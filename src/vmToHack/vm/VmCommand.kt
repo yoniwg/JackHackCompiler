@@ -34,5 +34,17 @@ sealed class VmCommand {
 
     class Lt : ComparisionCommand(CompSign.LT)
 
+    class Label(val labelName : String) : VmCommand()
+
+    class Goto(val labelName : String) : VmCommand()
+
+    class IfGoto(val labelName : String) : VmCommand()
+
+    class Function(val funcName: String, val nVars: Int) : VmCommand()
+
+    class Call(val funcName: String, val nArgs: Int) : VmCommand()
+
+    class Return : VmCommand()
+
 }
 

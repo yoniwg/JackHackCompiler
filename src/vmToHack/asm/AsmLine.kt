@@ -73,6 +73,7 @@ abstract class AsmLine {
     }
 
     class CreateLabel (private val label : String) : AsmLine(){
+
         override fun getAsString(): String {
             return "($label)"
         }
