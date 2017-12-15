@@ -1,6 +1,7 @@
 package vmToHack.vm
 
-import vmToHack.asm.*
+import vmToHack.asm.BinaryOpCode
+import vmToHack.asm.UnaryOpCode
 
 enum class CompSign { GT, LT, EQ }
 

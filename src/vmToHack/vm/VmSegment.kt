@@ -1,6 +1,5 @@
 package vmToHack.vm
 
-import com.sun.deploy.trace.TraceLevel.TEMP
 import vmToHack.asm.*
 
 
