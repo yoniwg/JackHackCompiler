@@ -1,4 +1,4 @@
-import jackToVm.lexical.parseTokens
+import jackToVm.lexical.LexicalParser
 import jackToVm.syntactic.ProgramStructureVar
 import jackToVm.syntactic.Variable
 import vmToHack.vm.VmCommand
@@ -15,10 +15,11 @@ fun main(args : Array<String>) {
     val pair = parseArguments(args)
     val vmFiles = pair.first
     val asmFile = pair.second
-
-    Variable.initIterator(parseTokens(vmFiles[0]).iterator())
-    val a = ProgramStructureVar.Class.generateNode();
-    a.toString()
+    LexicalParser(vmFiles[0]).parseTokens().forEach { print("${it.token} ") }
+    Variable.initIterator(LexicalParser(vmFiles[0]).parseTokens().iterator())
+    val a = ProgramStructureVar.Class.generateNode()
+    println()
+    a.printTo(System.out)
 
 //    val millis = measureTimeMillis {
 //        asmFile.bufferedWriter().use { asmBW ->

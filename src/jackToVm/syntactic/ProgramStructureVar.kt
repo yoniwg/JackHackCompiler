@@ -6,12 +6,12 @@ sealed class ProgramStructureVar : Variable(){
 
     object Class : ProgramStructureVar() {
         override fun generateNode(): Node.Class {
-            Terminal(Keyword.CLASS).assert(nextToken)
+            Terminal(Keyword.CLASS).assert(nextToken())
             val className = ClassName.generateNode()
-            Terminal(Symbol.L_PAR_CRL).assert(nextToken)
+            Terminal(Symbol.L_PAR_CRL).assert(nextToken())
             val classVarDecs = ClassVarDecs.generateNode()
             val subroutineDecs = SubroutineDecs.generateNode()
-            Terminal(Symbol.R_PAR_CRL).assert(nextToken)
+            Terminal(Symbol.R_PAR_CRL).assert(nextToken())
             return Node.Class(className, classVarDecs, subroutineDecs)
         }
     }
@@ -27,27 +27,28 @@ sealed class ProgramStructureVar : Variable(){
         override fun generateNode(): Node.ClassVarDec? {
             val decType = Terminal(Keyword.STATIC, Keyword.FIELD).matchingOrNull(tipToken) ?:
                     return null
-            nextToken
+            nextToken()
             val type = Type.generateNode()
             val varNames = VarNames.generateNode()
-            Terminal(Symbol.SEMI_COL).assert(nextToken)
-            return when(decType){
-                Keyword.STATIC -> Node.StaticClassVarDec(type, varNames)
-                Keyword.FIELD -> Node.FieldClassVarDec(type, varNames)
-                else -> throw RuntimeException("Shouldn't be else here")}
+            Terminal(Symbol.SEMI_COL).assert(nextToken())
+            return when(decType) {
+                Keyword.STATIC -> Node.ClassVarDec.StaticClassVarDec(type, varNames)
+                Keyword.FIELD -> Node.ClassVarDec.FieldClassVarDec(type, varNames)
+                else -> throw RuntimeException("Shouldn't be else here")
+            }
         }
     }
 
 
     object Type : ProgramStructureVar() {
-        override fun generateNode(): Node.Type {
+        override fun generateNode(): Node.TypeOrVoid.Type {
             val primitiveOrNull = Terminal(Keyword.INT, Keyword.CHAR, Keyword.BOOLEAN).matchingOrNull(tipToken)
-                    ?: return Node.ClassType(ClassName.generateNode())
-            nextToken
+                    ?: return Node.TypeOrVoid.Type.ClassType(ClassName.generateNode())
+            nextToken()
             return when (primitiveOrNull){
-                Keyword.INT -> Node.IntType()
-                Keyword.CHAR -> Node.CharType()
-                Keyword.BOOLEAN -> Node.BooleanType()
+                Keyword.INT -> Node.TypeOrVoid.Type.IntType
+                Keyword.CHAR -> Node.TypeOrVoid.Type.CharType
+                Keyword.BOOLEAN -> Node.TypeOrVoid.Type.BooleanType
                 else -> throw RuntimeException("Shouldn't be else here")
             }
         }
@@ -64,17 +65,18 @@ sealed class ProgramStructureVar : Variable(){
         override fun generateNode(): Node.SubroutineDec? {
             val subroutineType = Terminal(Keyword.CTOR, Keyword.FUNCTION, Keyword.METHOD).matchingOrNull(tipToken)
                     ?: return null
-            nextToken
-            val typeOrVoid = if (Terminal(Keyword.VOID).check(tipToken)) { nextToken; Node.Void} else Type.generateNode()
+            nextToken()
+            val typeOrVoid = if (Terminal(Keyword.VOID).check(tipToken)) {
+                nextToken(); Node.TypeOrVoid.Void} else Type.generateNode()
             val subroutineName = SubroutineName.generateNode()
-            Terminal(Symbol.L_PAR_RND).assert(nextToken)
+            Terminal(Symbol.L_PAR_RND).assert(nextToken())
             val parametersList = ParametersList.generateNode()
-            Terminal(Symbol.R_PAR_RND).assert(nextToken)
+            Terminal(Symbol.R_PAR_RND).assert(nextToken())
             val subroutineBody = SubroutineBody.generateNode()
             return when(subroutineType){
-                Keyword.CTOR -> Node.ConstructorDec(typeOrVoid,subroutineName,parametersList,subroutineBody)
-                Keyword.FUNCTION -> Node.FunctionDec(typeOrVoid,subroutineName,parametersList,subroutineBody)
-                Keyword.METHOD -> Node.MethodDec(typeOrVoid,subroutineName,parametersList,subroutineBody)
+                Keyword.CTOR -> Node.SubroutineDec.ConstructorDec(typeOrVoid, subroutineName, parametersList, subroutineBody)
+                Keyword.FUNCTION -> Node.SubroutineDec.FunctionDec(typeOrVoid, subroutineName, parametersList, subroutineBody)
+                Keyword.METHOD -> Node.SubroutineDec.MethodDec(typeOrVoid, subroutineName, parametersList, subroutineBody)
                 else -> throw RuntimeException("Shouldn't be else here")
             }
 
@@ -86,7 +88,7 @@ sealed class ProgramStructureVar : Variable(){
             if (Terminal(Symbol.R_PAR_RND).check(tipToken)) return null
             val parameterDec = ParameterDec.generateNode()
             if (Terminal(Symbol.COMMA).check(tipToken)){
-                nextToken
+                nextToken()
                 return Node.ParametersList(parameterDec,ParametersList.generateNode())
             }
             return Node.ParametersList(parameterDec,null)
@@ -103,10 +105,10 @@ sealed class ProgramStructureVar : Variable(){
 
     object SubroutineBody : ProgramStructureVar() {
         override fun generateNode(): Node.SubroutineBody {
-            Terminal(Symbol.L_PAR_CRL).assert(nextToken)
+            Terminal(Symbol.L_PAR_CRL).assert(nextToken())
             val varDecs = VarDecs.generateNode()
             val statements = StatementVar.Statements.generateNode()
-            Terminal(Symbol.R_PAR_CRL).assert(nextToken)
+            Terminal(Symbol.R_PAR_CRL).assert(nextToken())
             return Node.SubroutineBody(varDecs, statements)
         }
     }
@@ -120,23 +122,24 @@ sealed class ProgramStructureVar : Variable(){
 
     object VarDec : ProgramStructureVar() {
         override fun generateNode(): Node.VarDec {
-            Terminal(Keyword.VAR).assert(nextToken)
+            Terminal(Keyword.VAR).assert(nextToken())
             val type = Type.generateNode()
             val varNames = VarNames.generateNode()
-            Terminal(Symbol.SEMI_COL).assert(nextToken)
+            Terminal(Symbol.SEMI_COL).assert(nextToken())
             return Node.VarDec(type, varNames)
         }
     }
 
     object ClassName : ProgramStructureVar() {
         override fun generateNode(): Node.ClassName {
-            return Node.ClassName(TerminalType<Identifier>().returnSameTypeOrThrow(nextToken).idName)
+            return Node.ClassName(TerminalType<Identifier>().returnSameTypeOrThrow(nextToken()).idName)
         }
     }
 
     object SubroutineName : ProgramStructureVar() {
         override fun generateNode(): Node.SubroutineName {
-            return Node.SubroutineName(TerminalType<Identifier>().returnSameTypeOrThrow(nextToken).idName)
+            val codeLocation = tipToken.codeLocation
+            return Node.SubroutineName(TerminalType<Identifier>().returnSameTypeOrThrow(nextToken()).idName, codeLocation)
         }
     }
 
@@ -144,7 +147,7 @@ sealed class ProgramStructureVar : Variable(){
         override fun generateNode(): Node.VarNames {
             val varName = VarName.generateNode()
             if (Terminal(Symbol.COMMA).check(tipToken)){
-                nextToken
+                nextToken()
                 return Node.VarNames(varName,VarNames.generateNode())
             }
             return Node.VarNames(varName,null)
@@ -153,7 +156,8 @@ sealed class ProgramStructureVar : Variable(){
 
     object VarName : ProgramStructureVar(){
         override fun generateNode(): Node.VarName {
-            return Node.VarName(TerminalType<Identifier>().returnSameTypeOrThrow(nextToken).idName)
+            val codeLocation = tipToken.codeLocation
+            return Node.VarName(TerminalType<Identifier>().returnSameTypeOrThrow(nextToken()).idName, codeLocation)
         }
     }
 }

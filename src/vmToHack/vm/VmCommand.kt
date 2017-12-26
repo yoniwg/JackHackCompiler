@@ -11,29 +11,32 @@ sealed class VmCommand {
 
     class Pop(val vmSegment: VmSegment) : VmCommand()
 
-    abstract class BinaryCommand(val binaryOpCode: BinaryOpCode) : VmCommand()
+    sealed class BinaryCommand(val binaryOpCode: BinaryOpCode) : VmCommand() {
 
-    class Add : BinaryCommand(BinaryOpCode.ADD)
+        class Add : BinaryCommand(BinaryOpCode.ADD)
 
-    class Sub : BinaryCommand(BinaryOpCode.SUB)
+        class Sub : BinaryCommand(BinaryOpCode.SUB)
 
-    class And : BinaryCommand(BinaryOpCode.AND)
+        class And : BinaryCommand(BinaryOpCode.AND)
 
-    class Or : BinaryCommand(BinaryOpCode.OR)
+        class Or : BinaryCommand(BinaryOpCode.OR)
+    }
 
-    abstract class UnaryCommand(val unaryOpCode: UnaryOpCode) : VmCommand()
+    sealed class UnaryCommand(val unaryOpCode: UnaryOpCode) : VmCommand() {
 
-    class Neg : UnaryCommand(UnaryOpCode.NEGATIVE)
+        class Neg : UnaryCommand(UnaryOpCode.NEGATIVE)
 
-    class Not : UnaryCommand(UnaryOpCode.NOT)
+        class Not : UnaryCommand(UnaryOpCode.NOT)
+    }
 
-    abstract class ComparisionCommand(val compSign : CompSign) : VmCommand()
+    sealed class ComparisionCommand(val compSign : CompSign) : VmCommand() {
 
-    class Eq : ComparisionCommand(CompSign.EQ)
+        class Eq : ComparisionCommand(CompSign.EQ)
 
-    class Gt : ComparisionCommand(CompSign.GT)
+        class Gt : ComparisionCommand(CompSign.GT)
 
-    class Lt : ComparisionCommand(CompSign.LT)
+        class Lt : ComparisionCommand(CompSign.LT)
+    }
 
     class Label(val labelName : String) : VmCommand()
 

@@ -1,11 +1,13 @@
 package jackToVm.compilerElements
 
+import java.io.File
+
 fun String.tryIntConstant() = if (this.matches(Regex("[0-9]+"))) IntConstant(this) else null
 fun String.tryStringConstant() = if (this.startsWith("\"") && this.endsWith("\"")) StringConstant(this) else null
 fun String.tryBooleanConstant() = if (this == "true" || this == "false") BooleanConstant(this) else null
 fun String.tryNullConstant() = if (this == "null") NullConstant else null
 fun String.tryIdentifier() = if (this.matches(Regex("[A-Za-z_]+[A-Za-z0-9_]*"))) Identifier(this) else null
-
+fun String.coerceLength(maxSize : Int) = if (this.length <= maxSize) this else this.substring(0,maxSize)
 interface Token {
     companion object {
         fun parseToken(token : String): Token =
@@ -49,7 +51,7 @@ data class IntConstant(val uintVal: Int) : Token {
 }
 
 data class StringConstant(val string : String) : Token {
-    override fun toString() = "'${string.substring(0,20)}...'"
+    override fun toString() = "'${string.coerceLength(20)}...'"
 
 }
 
