@@ -6,6 +6,22 @@ import jackToVm.compilerElements.Token
 import jackToVm.lexical.EOFTok
 import jackToVm.lexical.FileToken
 
+class SyntacticParser (private val iterator : Iterator<FileToken>){
+    var tipToken : FileToken private set
+    init{
+        tipToken = iterator.next()
+    }
+
+    fun nextToken(): FileToken {
+        val currentToken = tipToken
+        tipToken = if (iterator.hasNext()) iterator.next() else EOFTok
+        return currentToken
+    }
+
+    val classNode = ProgramStructureVar.Class.generateNode(this)
+
+}
+
 private fun mismatchException(token : FileToken) =
         VmCodeGenerationException(token.codeLocation, "Token '${token.token}' was unexpected in this context")
 
@@ -13,7 +29,7 @@ class Terminal(private vararg val tokens: Token) {
 
     fun check(token: FileToken) = tokens.any { it == token.token }
     fun assert(token: FileToken) {
-            if (!check(token)) throw mismatchException(token)
+        if (!check(token)) throw mismatchException(token)
     }
     fun matchingOrNull(token: FileToken) = tokens.firstOrNull { it == token.token }
     fun matchingOrThrow(token: FileToken) = matchingOrNull(token) ?: throw mismatchException(token)
@@ -38,23 +54,5 @@ class TerminalType<out T : Token>(private val tokenType: Class<T>) {
 }
 
 abstract class Variable {
-    companion object {
-        private lateinit var iterator : Iterator<FileToken>
-        lateinit var tipToken : FileToken private set
-        fun initIterator(iterator: Iterator<FileToken>){
-            this.iterator = iterator
-            tipToken = iterator.next()
-        }
-
-        fun nextToken(): FileToken {
-            print("${tipToken.token} ")
-            val currentToken = tipToken
-            tipToken = if (iterator.hasNext()) iterator.next() else EOFTok
-            return currentToken
-        }
-
-
-    }
-    abstract fun generateNode(): Node?
-
+    abstract fun generateNode(sp: SyntacticParser): Node?
 }

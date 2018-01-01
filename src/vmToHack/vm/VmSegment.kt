@@ -3,11 +3,11 @@ package vmToHack.vm
 import vmToHack.asm.*
 
 
-sealed class VmSegment {
+sealed class VmSegment(val offset: Int) {
 
-    class Constant(val value: Int) : VmSegment()
+    class Constant(val value: Int) : VmSegment(value)
 
-    sealed class DynamicSeg(val segment: RamConstant, val offset: Int) : VmSegment() {
+    sealed class DynamicSeg(val segment: RamConstant, offset: Int) : VmSegment(offset) {
 
         class Local(offset: Int) : DynamicSeg(RamConstant.LCL, offset)
 
@@ -18,12 +18,12 @@ sealed class VmSegment {
         class That(offset: Int) : DynamicSeg(RamConstant.THAT, offset)
     }
 
-    sealed class StaticSeg(val staticLocation: StaticLocation) : VmSegment() {
+    sealed class StaticSeg(val staticLocation: StaticLocation, offset: Int) : VmSegment(offset) {
 
-        class Pointer(offset: Int) : StaticSeg(PointerRam(offset))
+        class Pointer(offset: Int) : StaticSeg(PointerRam(offset), offset)
 
-        class Temp(offset: Int) : StaticSeg(TempRam(offset))
+        class Temp(offset: Int) : StaticSeg(TempRam(offset), offset)
 
-        class Static(fileName: String, offset: Int) : StaticSeg(StaticRam(fileName, offset))
+        class Static(fileName: String, offset: Int) : StaticSeg(StaticRam(fileName, offset), offset)
     }
 }

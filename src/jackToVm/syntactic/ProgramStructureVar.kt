@@ -5,32 +5,32 @@ import jackToVm.compilerElements.*
 sealed class ProgramStructureVar : Variable(){
 
     object Class : ProgramStructureVar() {
-        override fun generateNode(): Node.Class {
-            Terminal(Keyword.CLASS).assert(nextToken())
-            val className = ClassName.generateNode()
-            Terminal(Symbol.L_PAR_CRL).assert(nextToken())
-            val classVarDecs = ClassVarDecs.generateNode()
-            val subroutineDecs = SubroutineDecs.generateNode()
-            Terminal(Symbol.R_PAR_CRL).assert(nextToken())
+        override fun generateNode(sp: SyntacticParser): Node.Class {
+            Terminal(Keyword.CLASS).assert(sp.nextToken())
+            val className = ClassName.generateNode(sp)
+            Terminal(Symbol.L_PAR_CRL).assert(sp.nextToken())
+            val classVarDecs = ClassVarDecs.generateNode(sp)
+            val subroutineDecs = SubroutineDecs.generateNode(sp)
+            Terminal(Symbol.R_PAR_CRL).assert(sp.nextToken())
             return Node.Class(className, classVarDecs, subroutineDecs)
         }
     }
 
     object ClassVarDecs : ProgramStructureVar() {
-        override fun generateNode(): Node.ClassVarDecs? {
-            val classVarDec = ClassVarDec.generateNode() ?: return null
-            return Node.ClassVarDecs(classVarDec, ClassVarDecs.generateNode())
+        override fun generateNode(sp: SyntacticParser): Node.ClassVarDecs? {
+            val classVarDec = ClassVarDec.generateNode(sp) ?: return null
+            return Node.ClassVarDecs(classVarDec, ClassVarDecs.generateNode(sp))
         }
     }
 
     object ClassVarDec : ProgramStructureVar() {
-        override fun generateNode(): Node.ClassVarDec? {
-            val decType = Terminal(Keyword.STATIC, Keyword.FIELD).matchingOrNull(tipToken) ?:
+        override fun generateNode(sp: SyntacticParser): Node.ClassVarDec? {
+            val decType = Terminal(Keyword.STATIC, Keyword.FIELD).matchingOrNull(sp.tipToken) ?:
                     return null
-            nextToken()
-            val type = Type.generateNode()
-            val varNames = VarNames.generateNode()
-            Terminal(Symbol.SEMI_COL).assert(nextToken())
+            sp.nextToken()
+            val type = Type.generateNode(sp)
+            val varNames = VarNames.generateNode(sp)
+            Terminal(Symbol.SEMI_COL).assert(sp.nextToken())
             return when(decType) {
                 Keyword.STATIC -> Node.ClassVarDec.StaticClassVarDec(type, varNames)
                 Keyword.FIELD -> Node.ClassVarDec.FieldClassVarDec(type, varNames)
@@ -41,13 +41,13 @@ sealed class ProgramStructureVar : Variable(){
 
 
     object Type : ProgramStructureVar() {
-        override fun generateNode(): Node.TypeOrVoid.Type {
-            val primitiveOrNull = Terminal(Keyword.INT, Keyword.CHAR, Keyword.BOOLEAN).matchingOrNull(tipToken)
-                    ?: return Node.TypeOrVoid.Type.ClassType(ClassName.generateNode())
-            nextToken()
+        override fun generateNode(sp: SyntacticParser): Node.TypeOrVoid.Type {
+            val primitiveOrNull = Terminal(Keyword.INT, Keyword.CHAR, Keyword.BOOLEAN).matchingOrNull(sp.tipToken)
+                    ?: return Node.TypeOrVoid.Type.ClassType(ClassName.generateNode(sp))
+            sp.nextToken()
             return when (primitiveOrNull){
                 Keyword.INT -> Node.TypeOrVoid.Type.IntType
-                Keyword.CHAR -> Node.TypeOrVoid.Type.CharType
+                Keyword.CHAR -> CharType
                 Keyword.BOOLEAN -> Node.TypeOrVoid.Type.BooleanType
                 else -> throw RuntimeException("Shouldn't be else here")
             }
@@ -55,24 +55,24 @@ sealed class ProgramStructureVar : Variable(){
     }
 
     object SubroutineDecs : ProgramStructureVar() {
-        override fun generateNode(): Node.SubroutineDecs? {
-            val subroutineDec = SubroutineDec.generateNode() ?: return null
-            return Node.SubroutineDecs(subroutineDec, SubroutineDecs.generateNode())
+        override fun generateNode(sp: SyntacticParser): Node.SubroutineDecs? {
+            val subroutineDec = SubroutineDec.generateNode(sp) ?: return null
+            return Node.SubroutineDecs(subroutineDec, SubroutineDecs.generateNode(sp))
         }
     }
 
     object SubroutineDec : ProgramStructureVar() {
-        override fun generateNode(): Node.SubroutineDec? {
-            val subroutineType = Terminal(Keyword.CTOR, Keyword.FUNCTION, Keyword.METHOD).matchingOrNull(tipToken)
+        override fun generateNode(sp: SyntacticParser): Node.SubroutineDec? {
+            val subroutineType = Terminal(Keyword.CTOR, Keyword.FUNCTION, Keyword.METHOD).matchingOrNull(sp.tipToken)
                     ?: return null
-            nextToken()
-            val typeOrVoid = if (Terminal(Keyword.VOID).check(tipToken)) {
-                nextToken(); Node.TypeOrVoid.Void} else Type.generateNode()
-            val subroutineName = SubroutineName.generateNode()
-            Terminal(Symbol.L_PAR_RND).assert(nextToken())
-            val parametersList = ParametersList.generateNode()
-            Terminal(Symbol.R_PAR_RND).assert(nextToken())
-            val subroutineBody = SubroutineBody.generateNode()
+            sp.nextToken()
+            val typeOrVoid = if (Terminal(Keyword.VOID).check(sp.tipToken)) {
+                sp.nextToken(); Node.TypeOrVoid.Void} else Type.generateNode(sp)
+            val subroutineName = SubroutineName.generateNode(sp)
+            Terminal(Symbol.L_PAR_RND).assert(sp.nextToken())
+            val parametersList = ParametersList.generateNode(sp)
+            Terminal(Symbol.R_PAR_RND).assert(sp.nextToken())
+            val subroutineBody = SubroutineBody.generateNode(sp)
             return when(subroutineType){
                 Keyword.CTOR -> Node.SubroutineDec.ConstructorDec(typeOrVoid, subroutineName, parametersList, subroutineBody)
                 Keyword.FUNCTION -> Node.SubroutineDec.FunctionDec(typeOrVoid, subroutineName, parametersList, subroutineBody)
@@ -84,80 +84,82 @@ sealed class ProgramStructureVar : Variable(){
     }
 
     object ParametersList : ProgramStructureVar() {
-        override fun generateNode(): Node.ParametersList? {
-            if (Terminal(Symbol.R_PAR_RND).check(tipToken)) return null
-            val parameterDec = ParameterDec.generateNode()
-            if (Terminal(Symbol.COMMA).check(tipToken)){
-                nextToken()
-                return Node.ParametersList(parameterDec,ParametersList.generateNode())
+        override fun generateNode(sp: SyntacticParser): Node.ParametersList? {
+            if (Terminal(Symbol.R_PAR_RND).check(sp.tipToken)) return null
+            val parameterDec = ParameterDec.generateNode(sp)
+            if (Terminal(Symbol.COMMA).check(sp.tipToken)){
+                sp.nextToken()
+                return Node.ParametersList(parameterDec,ParametersList.generateNode(sp))
             }
             return Node.ParametersList(parameterDec,null)
         }
     }
 
     object ParameterDec : ProgramStructureVar() {
-        override fun generateNode(): Node.ParameterDec {
-            val type = Type.generateNode()
-            val varName = VarName.generateNode()
+        override fun generateNode(sp: SyntacticParser): Node.ParameterDec {
+            val type = Type.generateNode(sp)
+            val varName = VarName.generateNode(sp)
             return Node.ParameterDec(type, varName)
         }
     }
 
     object SubroutineBody : ProgramStructureVar() {
-        override fun generateNode(): Node.SubroutineBody {
-            Terminal(Symbol.L_PAR_CRL).assert(nextToken())
-            val varDecs = VarDecs.generateNode()
-            val statements = StatementVar.Statements.generateNode()
-            Terminal(Symbol.R_PAR_CRL).assert(nextToken())
-            return Node.SubroutineBody(varDecs, statements)
+        override fun generateNode(sp: SyntacticParser): Node.SubroutineBody {
+            Terminal(Symbol.L_PAR_CRL).assert(sp.nextToken())
+            val varDecs = VarDecs.generateNode(sp)
+            val statements = StatementVar.Statements.generateNode(sp)
+            val returnStatements = StatementVar.ReturnStatement.generateNode(sp)
+            Terminal(Symbol.R_PAR_CRL).assert(sp.nextToken())
+            return Node.SubroutineBody(varDecs, statements, returnStatements)
         }
     }
 
     object VarDecs : ProgramStructureVar() {
-        override fun generateNode(): Node.VarDecs? {
-            if (!Terminal(Keyword.VAR).check(tipToken)) return null
-            return Node.VarDecs(VarDec.generateNode(),VarDecs.generateNode())
+        override fun generateNode(sp: SyntacticParser): Node.VarDecs? {
+            if (!Terminal(Keyword.VAR).check(sp.tipToken)) return null
+            return Node.VarDecs(VarDec.generateNode(sp),VarDecs.generateNode(sp))
         }
     }
 
     object VarDec : ProgramStructureVar() {
-        override fun generateNode(): Node.VarDec {
-            Terminal(Keyword.VAR).assert(nextToken())
-            val type = Type.generateNode()
-            val varNames = VarNames.generateNode()
-            Terminal(Symbol.SEMI_COL).assert(nextToken())
+        override fun generateNode(sp: SyntacticParser): Node.VarDec {
+            Terminal(Keyword.VAR).assert(sp.nextToken())
+            val type = Type.generateNode(sp)
+            val varNames = VarNames.generateNode(sp)
+            Terminal(Symbol.SEMI_COL).assert(sp.nextToken())
             return Node.VarDec(type, varNames)
         }
     }
 
     object ClassName : ProgramStructureVar() {
-        override fun generateNode(): Node.ClassName {
-            return Node.ClassName(TerminalType<Identifier>().returnSameTypeOrThrow(nextToken()).idName)
+        override fun generateNode(sp: SyntacticParser): Node.ClassName {
+            val codeLocation = sp.tipToken.codeLocation
+            return Node.ClassName(TerminalType<Identifier>().returnSameTypeOrThrow(sp.nextToken()).idName, codeLocation)
         }
     }
 
     object SubroutineName : ProgramStructureVar() {
-        override fun generateNode(): Node.SubroutineName {
-            val codeLocation = tipToken.codeLocation
-            return Node.SubroutineName(TerminalType<Identifier>().returnSameTypeOrThrow(nextToken()).idName, codeLocation)
+        override fun generateNode(sp: SyntacticParser): Node.SubroutineName {
+            val codeLocation = sp.tipToken.codeLocation
+            return Node.SubroutineName(TerminalType<Identifier>().returnSameTypeOrThrow(sp.nextToken()).idName, codeLocation)
         }
     }
 
     object VarNames : ProgramStructureVar() {
-        override fun generateNode(): Node.VarNames {
-            val varName = VarName.generateNode()
-            if (Terminal(Symbol.COMMA).check(tipToken)){
-                nextToken()
-                return Node.VarNames(varName,VarNames.generateNode())
+        override fun generateNode(sp: SyntacticParser): Node.VarNames {
+            val varName = VarName.generateNode(sp)
+            if (Terminal(Symbol.COMMA).check(sp.tipToken)){
+                sp.nextToken()
+                return Node.VarNames(varName,VarNames.generateNode(sp))
             }
             return Node.VarNames(varName,null)
         }
     }
 
     object VarName : ProgramStructureVar(){
-        override fun generateNode(): Node.VarName {
-            val codeLocation = tipToken.codeLocation
-            return Node.VarName(TerminalType<Identifier>().returnSameTypeOrThrow(nextToken()).idName, codeLocation)
+        override fun generateNode(sp: SyntacticParser): Node.VarName {
+            val codeLocation = sp.tipToken.codeLocation
+            return Node.VarName(TerminalType<Identifier>().returnSameTypeOrThrow(sp.nextToken()).idName, codeLocation)
         }
     }
 }

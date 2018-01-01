@@ -52,13 +52,14 @@ data class IntConstant(val uintVal: Int) : Token {
 
 data class StringConstant(val string : String) : Token {
     override fun toString() = "'${string.coerceLength(20)}...'"
-
 }
 
 data class BooleanConstant(val boolVal : Boolean) : Token {
     constructor(boolTok: String) : this(boolTok.toBoolean())
     override fun toString() = "'$boolVal'".toUpperCase()
 }
+
+//TODO why there is no CHAR constant?
 
 object NullConstant : Token {
     override fun toString() = "'NULL'"

@@ -1,156 +1,374 @@
 package jackToVm.codeGen
 
+import jackToVm.CodeLocation
 import jackToVm.codeGen.CodeGeneration.VarKind.*
 import jackToVm.compilerElements.Node
-import sun.reflect.generics.scope.AbstractScope
+import jackToVm.compilerElements.Op
+import jackToVm.compilerElements.UnaryOp
 import vmToHack.vm.VmCommand
 import vmToHack.vm.VmSegment
-import kotlin.test.assertSame
+import java.io.File
 
-val VmSegment.name get() = when(this){
-
-    is VmSegment.Constant -> "constant"
-    is VmSegment.DynamicSeg -> when (this){
-        is VmSegment.DynamicSeg.Local -> "local"
-        is VmSegment.DynamicSeg.Arg -> "argument"
-        is VmSegment.DynamicSeg.This -> "this"
-        is VmSegment.DynamicSeg.That -> "that"
-    }
-    is VmSegment.StaticSeg -> when (this){
-        is VmSegment.StaticSeg.Pointer -> "pointer"
-        is VmSegment.StaticSeg.Temp -> "temp"
-        is VmSegment.StaticSeg.Static -> "static"
-    }
+val Op.vmCommand get() = when(this){
+    Op.ADD -> VmCommand.BinaryCommand.Add
+    Op.SUB -> VmCommand.BinaryCommand.Sub
+    Op.DIV -> VmCommand.Call("Math.divide", 2)
+    Op.MULT -> VmCommand.Call("Math.multiply", 2)
+    Op.AND -> VmCommand.BinaryCommand.And
+    Op.OR -> VmCommand.BinaryCommand.Or
+    Op.LT -> VmCommand.ComparisionCommand.Lt
+    Op.GT -> VmCommand.ComparisionCommand.Gt
+    Op.EQUAL -> VmCommand.ComparisionCommand.Eq
 }
 
-fun VmCommand.Push.generateCode(number: Int) = "push ${this.vmSegment.name} $number"
-fun VmCommand.Pop.generateCode(number: Int) = "push ${this.vmSegment.name} $number"
-fun VmCommand.BinaryCommand.generateCode()= when (this){
-    is VmCommand.BinaryCommand.Add -> "add"
-    is VmCommand.BinaryCommand.Sub -> "sub"
-    is VmCommand.BinaryCommand.And -> "and"
-    is VmCommand.BinaryCommand.Or -> "or"
+val Op.onTypes get() = when (this){
+    Op.ADD, Op.SUB, Op.DIV, Op.MULT,
+    Op.LT, Op.GT -> listOf(Node.TypeOrVoid.Type.IntType::class)
+    Op.EQUAL -> listOf(Node.TypeOrVoid.Type::class)
+    Op.AND ,Op.OR -> listOf(Node.TypeOrVoid.Type.BooleanType::class)
 }
-fun VmCommand.UnaryCommand.generateCode()= when (this){
-    is VmCommand.UnaryCommand.Neg -> "neg"
-    is VmCommand.UnaryCommand.Not -> "not"
-}
-fun VmCommand.ComparisionCommand.generateCode() = when (this){
-    is VmCommand.ComparisionCommand.Eq -> "eq"
-    is VmCommand.ComparisionCommand.Gt -> "gt"
-    is VmCommand.ComparisionCommand.Lt -> "lt"
-}
-fun VmCommand.Label.generateCode(label: String) = "label $label"
-fun VmCommand.Goto.generateCode(label: String) = "goto $label"
-fun VmCommand.IfGoto.generateCode(label: String) = "if-goto $label"
-fun VmCommand.Function.generateCode(functionName: String, nVars : Int) = "goto $functionName $nVars"
-fun VmCommand.Call.generateCode(functionName: String, nArgs : Int) = "goto $functionName $nArgs"
-fun VmCommand.Return.generateCode() = "return"
 
+val Op.retType get() = when (this){
+    Op.ADD, Op.SUB, Op.DIV, Op.MULT -> Node.TypeOrVoid.Type.IntType
+    Op.LT, Op.GT, Op.EQUAL,
+    Op.AND ,Op.OR -> Node.TypeOrVoid.Type.BooleanType
+}
 
-class CodeGeneration {
+val UnaryOp.vmCommand get() = when (this){
+    UnaryOp.NEGATIVE -> VmCommand.UnaryCommand.Neg
+    UnaryOp.NOT -> VmCommand.UnaryCommand.Not
+}
+
+val UnaryOp.onType get() = when (this){
+    UnaryOp.NEGATIVE -> Node.TypeOrVoid.Type.IntType
+    UnaryOp.NOT -> Node.TypeOrVoid.Type.BooleanType
+}
+
+fun Int?.orZero() = if (this != null) this else 0
+
+class CodeGeneration(private val jackFileName : String, private val classNode: Node.Class) {
+
+    fun generateCode() = classNode.generateCode()
+
+    private val stringClassType = Node.TypeOrVoid.Type.ClassType("String".vmClassName())
+    private val arrayClassType = Node.TypeOrVoid.Type.ClassType("Array".vmClassName())
+    private val thisClassType get() =  Node.TypeOrVoid.Type.ClassType(className)
+    private val thisVarName = Node.VarName("this", CodeLocation(File(""),-1))
+
+    private lateinit var className : Node.ClassName
+
+    var lc = 0;
+
 
     enum class VarKind {
-        FIELD, STATIC, VAR, ARG
+        FIELD, STATIC, VAR, ARG, THIS
     }
 
     enum class SubroutineKind {
         CTOR, FUNCTION, METHOD
     }
 
-    fun Node.Class.generateCode() : List<VmCommand>{
-        return this.classVarDecs?.generateCode(className).orEmpty() +
-            this.subroutineDecs?.generateCode(className).orEmpty()
+    private fun VarKind.getSegmentAt(offset : Int) = when (this){
+        FIELD -> VmSegment.DynamicSeg.This(offset)
+        STATIC -> VmSegment.StaticSeg.Static(className.className,offset)
+        VAR -> VmSegment.DynamicSeg.Local(offset)
+        ARG -> VmSegment.DynamicSeg.Arg(offset)
+        THIS -> VmSegment.StaticSeg.Pointer(0)
     }
 
-    fun Node.ClassVarDecs.generateCode(className : Node.ClassName) : List<VmCommand>{
-        return classVarDec.generateCode(className) +
-            this.classVarDecs?.generateCode(className).orEmpty()
+    private fun Node.Class.generateCode() : List<VmCommand>{
+        if (jackFileName != this@generateCode.className.className){
+            throw Exception("Class name must be as same as file name")
+        }
+        this@CodeGeneration.className = this.className
+        val fieldsCount = classVarDecs?.count() ?: 0
+        return subroutineDecs?.generateCode(fieldsCount).orEmpty()
     }
 
-    fun Node.SubroutineDecs.generateCode(className : Node.ClassName) : List<VmCommand>{
-        return subroutineDec.generateCode(className) +
-            this.subroutineDecs?.generateCode(className).orEmpty()
+    private fun Node.ClassVarDecs.count() : Int = classVarDec.varNames.count() + classVarDecs?.count().orZero()
+    private fun Node.VarNames.count() : Int = 1 + varNames?.count().orZero()
+
+    private fun Node.SubroutineDecs.generateCode(fieldsCount: Int): List<VmCommand>{
+        return subroutineDec.generateCode(fieldsCount) +
+                subroutineDecs?.generateCode(fieldsCount).orEmpty()
     }
 
-    fun Node.ClassVarDec.generateCode(className : Node.ClassName) : List<VmCommand> {
-        return when (this){
-            is Node.ClassVarDec.StaticClassVarDec -> varNames.generateCode(STATIC,className,type)
-            is Node.ClassVarDec.FieldClassVarDec -> varNames.generateCode(FIELD,className,type)
+    private fun Node.VarNames.addToSymbolsTableStack(varKind: CodeGeneration.VarKind, type: Node.TypeOrVoid){
+        varName.addToSymbolsTableStack(varKind, type)
+        varNames?.addToSymbolsTableStack(varKind,type)
+    }
+
+    private fun Node.VarName.addToSymbolsTableStack(varKind: VarKind, type: Node.TypeOrVoid){
+        when (varKind) {
+            ARG, VAR -> {
+                StackMember.addVariable(varKind, this, type)
+            }
+            else -> {
+                throw RuntimeException("$varKind Should be added to Symbols Table at API phase")
+            }
         }
     }
 
-    fun Node.VarNames.generateCode(varKind: VarKind, className : Node.ClassName?, type: Node.TypeOrVoid) : List<VmCommand> {
-        if (varKind == VAR) {
-            StackMember.addVariable(varName,type)
-        } else {
-            if (className == null) throw RuntimeException("$varKind must provide class-name")
-            HeapMember.addVariable(varKind, className, varName, type)
-        }
-        TODO()
-        return varNames?.generateCode(varKind,className,type).orEmpty()
-    }
-
-    fun Node.SubroutineDec.generateCode(className : Node.ClassName) : List<VmCommand> {
-        val parametersList =  parametersList?.aggregateDecs().orEmpty()
-        val methodKind = when (this) {
+    private fun Node.SubroutineDec.generateCode(fieldsCount: Int): List<VmCommand> {
+        val subroutineKind = when (this) {
             is Node.SubroutineDec.ConstructorDec -> SubroutineKind.CTOR
             is Node.SubroutineDec.FunctionDec -> SubroutineKind.FUNCTION
             is Node.SubroutineDec.MethodDec -> SubroutineKind.METHOD
         }
-        HeapMember.addSubroutine(methodKind, className, subroutineName, retType, parametersList)
-        val parametersInit = TODO()
-        val subroutineBody = subroutineBody.generateCode(className)
-    }
-    fun Node.ParametersList.aggregateDecs() : List<Node.ParameterDec>{
-        return listOf(parameterDec) + parametersList?.aggregateDecs().orEmpty()
-    }
-    fun Node.ParameterDec.generateCode() : List<VmCommand>{
-        StackMember.addVariable(paramName, type)
-        TODO()
-    }
-
-    fun Node.SubroutineBody.generateCode(scope : Node.ClassName) : List<VmCommand>{
-        return varDecs?.generateCode().orEmpty() +
-                statements.generateCode(scope)
-    }
-    fun Node.VarDecs.generateCode() : List<VmCommand>{
-        return varDec.generateCode() +
-                varDecs?.generateCode().orEmpty()
-    }
-    fun Node.VarDec.generateCode() : List<VmCommand>{
-        return varNames.generateCode(VAR, null, type)
+        val isStatic = subroutineKind == SubroutineKind.FUNCTION
+        if (!isStatic) StackMember.addVariable(THIS, thisVarName, thisClassType)
+        if (subroutineKind == SubroutineKind.METHOD) StackMember.addVariable(ARG, Node.VarName("this", CodeLocation(File(""),-1)),thisClassType)
+        parametersList?.addToSymbolsTableStack()
+        val varsCount = subroutineBody.varDecs?.count() ?: 0
+        return listOf(VmCommand.Function("${className.className}.${subroutineName.subroutineName}", varsCount)) +
+                when (this) {
+                    is Node.SubroutineDec.ConstructorDec -> {
+                        listOf(VmCommand.Push(VmSegment.Constant(fieldsCount)),
+                                VmCommand.Call("Memory.alloc",1),
+                                VmCommand.Pop(VmSegment.StaticSeg.Pointer(0)))
+                    }
+                    is Node.SubroutineDec.MethodDec -> {
+                        listOf(VmCommand.Push(VmSegment.DynamicSeg.Arg(0)),
+                                VmCommand.Pop(VmSegment.StaticSeg.Pointer(0)))
+                    }
+                    is Node.SubroutineDec.FunctionDec -> emptyList()
+                } + subroutineBody.generateCode(isStatic, retType)
     }
 
-    fun Node.Statements.generateCode(scope : Node.ClassName) : List<VmCommand>{
-        return statement?.generateCode(scope).orEmpty() +
-                statements?.generateCode(scope).orEmpty()
+    private fun Node.VarDecs.count() : Int = varDec.varNames.count() + varDecs?.count().orZero()
+
+    private fun Node.ParametersList.addToSymbolsTableStack() {
+        parameterDec.addToSymbolsTableStack()
+        parametersList?.addToSymbolsTableStack()
+    }
+    private fun Node.ParameterDec.addToSymbolsTableStack() {
+        paramName.addToSymbolsTableStack(ARG, type)
     }
 
-    fun Node.Statement.generateCode(scope : Node.ClassName) : List<VmCommand> = when (this){
-        is Node.Statement.LetStatement -> {
-            val typedVar = VariablesTable.getVarOrFieldOrStatic(varName, scope)
-            val expressionType = initializer.getResolvedType()
-            assertSameType(typedVar.type, expressionType)
-            TODO()
+    private fun Node.SubroutineBody.generateCode(isStatic : Boolean, subroutineRetType : Node.TypeOrVoid) : List<VmCommand>{
+        varDecs?.addToSymbolsTableStack()
+        return statements.generateCode(isStatic) + returnStatement.generateCode(isStatic, subroutineRetType)
+    }
+
+    private fun Node.VarDecs.addToSymbolsTableStack(){
+        varDec.addToSymbolsTableStack()
+        varDecs?.addToSymbolsTableStack()
+    }
+
+    private fun Node.VarDec.addToSymbolsTableStack(){
+        varNames.addToSymbolsTableStack(VAR, type)
+    }
+
+    private fun Node.Statements.generateCode(isStatic: Boolean) : List<VmCommand>{
+        return statement?.generateCode(isStatic).orEmpty() +
+                statements?.generateCode(isStatic).orEmpty()
+    }
+
+
+    private fun Node.Statement.generateCode(isStatic: Boolean) : List<VmCommand> = try{
+        listOf(VmCommand.Comment("${this.javaClass.simpleName} at ${codeLocation.lineNumber}")) +
+                when (this){
+                    is Node.Statement.LetStatement -> {
+                        val indexedVar = SymbolsTable.getVarOrFieldOrStatic(varName, className)
+                        assertNotStatic(isStatic, indexedVar.varKind)
+                        initializer.generateCode(isStatic, indexedVar.type) +
+                                when {
+                                    arrayOffset == null ->
+                                        listOf(VmCommand.Pop(indexedVar.varKind.getSegmentAt(indexedVar.index)))
+                                    indexedVar.type == arrayClassType ->
+                                        arrayOffset.generateCode(isStatic,Node.TypeOrVoid.Type.IntType) +
+                                                VmCommand.Push(indexedVar.varKind.getSegmentAt(indexedVar.index))+
+                                                VmCommand.BinaryCommand.Add +
+                                                VmCommand.Pop(VmSegment.StaticSeg.Pointer(1)) +
+                                                VmCommand.Pop(VmSegment.DynamicSeg.That(0))
+                                    else -> throw TypeMismatchException("${varName.varName} is not an Array instance")
+                                }
+                    }
+                    is Node.Statement.IfStatement -> {
+                        val elseLabel = "\$if_goto_${lc++}"
+                        val endLabel = "\$if_goto_${lc++}"
+                        condition.generateCode(isStatic, Node.TypeOrVoid.Type.BooleanType) +
+                                VmCommand.UnaryCommand.Not +
+                                VmCommand.IfGoto(elseLabel) +
+                                statements.generateCode(isStatic) +
+                                VmCommand.Goto(endLabel) +
+                                VmCommand.Label(elseLabel) +
+                                elseStatements?.generateCode(isStatic).orEmpty() +
+                                VmCommand.Label(endLabel)
+                    }
+                    is Node.Statement.WhileStatement -> {
+                        val loopLabel = "\$if_goto_${lc++}"
+                        val endLabel = "\$if_goto_${lc++}"
+                        listOf(VmCommand.Label(loopLabel)) +
+                                condition.generateCode(isStatic, Node.TypeOrVoid.Type.BooleanType) +
+                                VmCommand.UnaryCommand.Not +
+                                VmCommand.IfGoto(endLabel) +
+                                statements.generateCode(isStatic) +
+                                VmCommand.Goto(loopLabel) +
+                                VmCommand.Label(endLabel)
+                    }
+                    is Node.Statement.DoStatement -> subroutineCall.generateCode(isStatic, Node.TypeOrVoid.Any)+
+                            VmCommand.Pop(VmSegment.StaticSeg.Temp(0))
+
+                }
+    } catch (e : Exception) {if (e !is VmCodeGenerationException) throw VmCodeGenerationException(codeLocation, e.message ?: "Unknown Error", e) else throw e}
+
+    private fun Node.ReturnStatement.generateCode(isStatic: Boolean, subroutineRetType: Node.TypeOrVoid) : List<VmCommand>{
+        try{
+            if ((subroutineRetType is Node.TypeOrVoid.Void) != (returnExpression == null)) {
+                throw TypeMismatchException("")
+            }
+            val commands = (returnExpression?.generateCode(isStatic, subroutineRetType) ?:
+                    listOf(VmCommand.Push(VmSegment.Constant(0)))) +
+                    VmCommand.Return
+            StackMember.initStack()
+            return commands
+        }catch (e : TypeMismatchException){
+            throw VmCodeGenerationException(codeLocation, "Subroutine return type must fit its declaration")
         }
-        is Node.Statement.IfStatement -> {
-            TODO()
-        }
-        is Node.Statement.WhileStatement -> TODO()
-        is Node.Statement.DoStatement -> TODO()
-        is Node.Statement.ReturnStatement -> TODO()
+    }
+    private fun Node.OpTerm.generateCode(isStatic : Boolean, lvalueType : Node.TypeOrVoid) : List<VmCommand> {
+        assertOpForType(lvalueType, op)
+        return term.generateCode(isStatic, lvalueType) + op.vmCommand
     }
 
-    fun Node.OpTerm.generateCode() : List<VmCommand>{ TODO()}
-    fun Node.Term.generateCode() : List<VmCommand>{TODO()}
-    fun Node.Term.getResolvedType() : Node.TypeOrVoid{ TODO()}
-    fun Node.SubroutineSource.generateCode() : List<VmCommand>{TODO()}
-    fun Node.ExpressionsList.generateCode() : List<VmCommand>{TODO()}
 
-    private fun assertSameType(lValType: Node.TypeOrVoid, rValType: Node.TypeOrVoid) {
-        if (lValType != rValType){
-            throw Exception("let statement's lvalue type must fit rvalue type")
+    private fun Node.Term.resolveType() : Node.TypeOrVoid = when (this){
+
+        is Node.Term.Expression -> if (opTerm == null) { term.resolveType()} else { opTerm.op.retType }
+        is Node.Term.Const.IntConst -> Node.TypeOrVoid.Type.IntType
+        is Node.Term.Const.StringConst -> stringClassType
+        is Node.Term.Const.BooleanConst -> Node.TypeOrVoid.Type.BooleanType
+        is Node.Term.Const.Null -> throw TypeMismatchException("lvalue cannot refer to 'null'")
+        is Node.Term.Const.This -> thisClassType
+        is Node.Term.IdentifierTerm.VarTerm -> SymbolsTable.getVarOrFieldOrStatic(varName, className).type
+        is Node.Term.IdentifierTerm.VarArrayTerm -> Node.TypeOrVoid.Type.IntType
+        is Node.Term.IdentifierTerm.SubroutineCall -> SymbolsTable.getMethodOrFunction(subroutineName, subroutineSource, className).returnedType
+        is Node.Term.ExpressionTerm -> expression.resolveType()
+        is Node.Term.UnaryOp -> unaryOp.onType
+    }
+
+    private fun Node.Term.generateCode(isStatic : Boolean, lvalueType : Node.TypeOrVoid) : List<VmCommand>{
+        return when(this){
+            is Node.Term.Expression -> {
+                return if (opTerm != null){
+                    assertSameType(lvalueType,opTerm.op.retType,"'${opTerm.op}' doesn't return '${lvalueType::class.simpleName}'")
+                    val termType = term.resolveType()
+                    term.generateCode(isStatic, termType) + opTerm.generateCode(isStatic, termType)
+                }else {
+                    term.generateCode(isStatic, lvalueType)
+                }
+            }
+            is Node.Term.Const.IntConst -> {
+                assertSameType(lvalueType, Node.TypeOrVoid.Type.IntType)
+                return listOf(VmCommand.Push(VmSegment.Constant(intConst)))
+            }
+            is Node.Term.Const.StringConst -> {
+                assertSameType(lvalueType, stringClassType)
+                return listOf(VmCommand.Push(VmSegment.Constant(stringConst.length)),
+                        VmCommand.Call("String.new", 1)) +
+                        stringConst.flatMap { listOf(VmCommand.Push(VmSegment.Constant(it.toInt())),
+                                VmCommand.Call("String.appendChar", 2)) }
+            }
+            is Node.Term.Const.BooleanConst -> {
+                assertSameType(lvalueType, Node.TypeOrVoid.Type.BooleanType)
+                return if (booleanConst)
+                    listOf(VmCommand.Push(VmSegment.Constant(1)), VmCommand.UnaryCommand.Neg)
+                else
+                    listOf(VmCommand.Push(VmSegment.Constant(0)))
+            }
+            is Node.Term.Const.Null -> {
+                if (lvalueType !is Node.TypeOrVoid.Type.ClassType){
+                    throw Exception("null cannot be refer to primitive type")
+                }
+                return listOf(VmCommand.Push(VmSegment.Constant(0)))
+            }
+            is Node.Term.Const.This -> {
+                assertSameType(lvalueType, thisClassType)
+                return listOf(VmCommand.Push(VmSegment.StaticSeg.Pointer(0)))
+            }
+            is Node.Term.IdentifierTerm.VarTerm -> {
+                val indexedVar = SymbolsTable.getVarOrFieldOrStatic(varName, className)
+                assertNotStatic(isStatic, indexedVar.varKind)
+                assertSameType(lvalueType, indexedVar.type)
+                return listOf(VmCommand.Push(indexedVar.varKind.getSegmentAt(indexedVar.index)))
+            }
+            is Node.Term.IdentifierTerm.VarArrayTerm -> {
+                val indexedVar = SymbolsTable.getVarOrFieldOrStatic(varName, className)
+                assertSameType(indexedVar.type, arrayClassType,
+                        "${varName.varName} is not an Array instance")
+                assertNotStatic(isStatic, indexedVar.varKind)
+                assertSameType(lvalueType, indexedVar.type)
+                return try {
+                    arrayOffset.generateCode(isStatic, Node.TypeOrVoid.Type.IntType)
+                } catch (e : TypeMismatchException) {throw Exception("Array offset must be of Int type")} +
+                        VmCommand.Push(indexedVar.varKind.getSegmentAt(indexedVar.index)) +
+                        VmCommand.BinaryCommand.Add +
+                        VmCommand.Pop(VmSegment.StaticSeg.Pointer(1)) +
+                        VmCommand.Push(VmSegment.DynamicSeg.That(0))
+            }
+            is Node.Term.IdentifierTerm.SubroutineCall -> {
+                val typedSubroutine = SymbolsTable.getMethodOrFunction(subroutineName,subroutineSource, className)
+                subroutineSource ?: assertNotStatic(isStatic, typedSubroutine.subroutineKind)
+                assertSameType(lvalueType, typedSubroutine.returnedType)
+                return if (typedSubroutine.subroutineKind == SubroutineKind.METHOD) {
+                    subroutineSource?.generateCode() ?: listOf(VmCommand.Push( VmSegment.StaticSeg.Pointer(0)))
+                } else {emptyList()} +
+                        if ((expressionsList == null) == typedSubroutine.parametersList.isEmpty()) {
+                            expressionsList?.generateCode(isStatic, typedSubroutine.parametersList).orEmpty()
+                        } else { throw Exception("number of subroutine arguments mismatch deceleration") } +
+                        VmCommand.Call(typedSubroutine.ownerClassName + "." +
+                                subroutineName.subroutineName, typedSubroutine.parametersList.size
+                                + if (typedSubroutine.subroutineKind == SubroutineKind.METHOD) 1 else 0)
+            }
+            is Node.Term.ExpressionTerm -> expression.generateCode(isStatic, lvalueType)
+            is Node.Term.UnaryOp -> {
+                val opType = unaryOp.onType
+                term.generateCode(isStatic, opType) +
+                        listOf(unaryOp.vmCommand)
+            }
+        }
+    }
+    private fun Node.SubroutineSource.generateCode() : List<VmCommand>{
+        val indexedVar = SymbolsTable.getVarOrFieldOrStatic(varOrClassName, className)
+        return listOf(VmCommand.Push(indexedVar.varKind.getSegmentAt(indexedVar.index)))
+    }
+    private fun Node.ExpressionsList.generateCode(isStatic: Boolean, parametersList: List<Node.TypeOrVoid>): List<VmCommand>{
+        val choppedParametersList = parametersList.drop(1)
+        return try{
+            expression.generateCode(isStatic, parametersList[0])
+        } catch (e : TypeMismatchException) { throw Exception("subroutine arguments mismatch declaration")} +
+                if ((expressionsList == null) == choppedParametersList.isEmpty()){
+                    expressionsList?.generateCode(isStatic, choppedParametersList).orEmpty()
+                } else{
+                    throw Exception("number of subroutine arguments mismatch declaration")
+                }
+    }
+
+    private fun assertOpForType(lValType: Node.TypeOrVoid, op: Op) {
+        if (!op.onTypes.any { it.isInstance(lValType) }){
+            throw TypeMismatchException("$op doesn't fit for these values type")
+        }
+    }
+
+    private fun assertSameType(lValType: Node.TypeOrVoid, rValType: Node.TypeOrVoid, msg: String? = null) {
+        if (lValType != Node.TypeOrVoid.Any && rValType != Node.TypeOrVoid.Any &&
+                lValType != arrayClassType &&
+                rValType != arrayClassType &&
+                lValType != rValType){
+            throw TypeMismatchException(msg ?: "lvalue must fit rvalue")
+        }
+    }
+
+    private fun assertNotStatic(isStatic: Boolean, varKind: VarKind, msg: String? = null) {
+        if (isStatic && varKind == FIELD){
+            throw TypeMismatchException(msg ?: "cannot access non-static field from static context")
+        }
+    }
+
+    private fun assertNotStatic(isStatic: Boolean, subroutineKind: SubroutineKind, msg: String? = null) {
+        if (isStatic && subroutineKind != SubroutineKind.FUNCTION){
+            throw TypeMismatchException(msg ?: "cannot access non-static method from static context")
         }
     }
 }

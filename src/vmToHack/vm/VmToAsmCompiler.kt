@@ -1,6 +1,10 @@
 package vmToHack.vm
 
 import vmToHack.asm.*
+import vmToHack.vm.VmLine.Companion.parseFile
+
+import java.io.File
+import kotlin.system.measureTimeMillis
 
 private var lc: Int = 0
 
@@ -14,8 +18,9 @@ class VmToAsmCompiler private constructor() {
         private const val STACK_START = 256
         private const val SYS_INIT_FUNC = "Sys.init"
 
+        fun compileAll(vmFiles : List<File>) = vmFiles.asSequence().flatMap(::parseFile).let { compile(it) }
 
-        fun compile(commands: Sequence<VmCommand>): Sequence<AsmLine> = with(VmToAsmCompiler()) {
+        private fun compile(commands: Sequence<VmCommand>): Sequence<AsmLine> = with(VmToAsmCompiler()) {
             return init().asSequence() + commands.flatMap { it.createAsmLines().asSequence() }
         }
 
@@ -83,6 +88,8 @@ class VmToAsmCompiler private constructor() {
 
 
     private fun VmCommand.createAsmLines() : Array<AsmLine> = when (this) {
+        is VmCommand.Comment -> emptyArray()
+
         is VmCommand.Push -> vmSegment.push()
 
         is VmCommand.Pop -> vmSegment.pop()
@@ -106,7 +113,7 @@ class VmToAsmCompiler private constructor() {
             lc++
             val ifTrueLbl = "IF_TRUE\$$lc"
             val endLbl = "END\$$lc"
-                popStackToD +
+            popStackToD +
                     setATo(RamConstant.R13) +
                     copyDToM +
                     popStackToD +

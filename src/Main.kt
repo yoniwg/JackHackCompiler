@@ -1,64 +1,33 @@
-import jackToVm.lexical.LexicalParser
-import jackToVm.syntactic.ProgramStructureVar
-import jackToVm.syntactic.Variable
-import vmToHack.vm.VmCommand
-import vmToHack.vm.VmLine
+import jackToVm.JackToVmCompiler
 import java.io.File
 import java.io.IOException
+import java.nio.file.FileSystem
 
 fun main(args : Array<String>) {
-    if (args.isEmpty() || args[0].matches(Regex("""[/-]\?|--help"""))) {
-        println("Usage: JackHack <filename1.vm | dirName1> [fileName2.vm | dirName2 ...] [-o out-filename: default=filename1.asm]")
+    if (args.getOrNull(0)?.matches(Regex("""[/-]\?|--help""")) == true) {
+        println("Usage: JackHack <dirName1> [dirName2 ...] [options]")
+        println("options:")
+        println("-asm [asm-out-filename (default=Main.asm)]")
         return
     }
 
     val pair = parseArguments(args)
-    val vmFiles = pair.first
+    val dirs = pair.first
     val asmFile = pair.second
-    LexicalParser(vmFiles[0]).parseTokens().forEach { print("${it.token} ") }
-    Variable.initIterator(LexicalParser(vmFiles[0]).parseTokens().iterator())
-    val a = ProgramStructureVar.Class.generateNode()
-    println()
-    a.printTo(System.out)
 
-//    val millis = measureTimeMillis {
-//        asmFile.bufferedWriter().use { asmBW ->
-//            val vmCommands = vmFiles.asSequence().flatMap {
-//                it.bufferedReader().lineSequence().mapIndexedNotNull { i, line ->
-//                    parseVmLine(it.nameWithoutExtension, line, i)
-//                }
-//            }
-//            val asmLines = VmToAsmCompiler.compile(vmCommands)
-//            asmLines.forEach {
-//                asmBW.write(it.getAsString())
-//                asmBW.newLine()
-//            }
-//        }
-//    }
-//
-//    println("$asmFile was created successfully in: $millis ms")
+    Compiler(dirs, asmFile).compile()
 }
 
-private fun parseArguments(args: Array<String>): Pair<List<File>, File> {
-    val indexOfOutFile = args.indexOf("-o")
-    if (indexOfOutFile == 0) throw IllegalArgumentException("No vm file is provided")
-    val rawFiles = (if (indexOfOutFile == -1) args.toList() else args.filterIndexed { i, _ -> (i < indexOfOutFile) }).map { File(it) }
+private fun parseArguments(args: Array<String>): Pair<List<File>, File?> {
+    val indexOfOutFile = args.indexOf("-asm")
+    val firstOptArg = args.indexOfFirst { it.startsWith("-") }
+    val dirsStr = (if (firstOptArg <= 0) listOf(System.getProperty("user.dir")) else listOf()) +
+        if (firstOptArg == -1) args.toList() else args.take(firstOptArg)
+    val dirs = dirsStr.map(::File)
+    dirs.forEach { if (!it.isDirectory) throw IOException("No such directory: " + it) }
 
-    rawFiles.forEach { if (!it.exists()) throw IOException("No such file or directory: " + it) }
-    val vmFiles = rawFiles.flatMap {
-        if (it.isDirectory) it.listFiles({ f -> f.extension == "vm" }).asList() else listOf(it)
-    }.requireNoNulls()
-
-    var asmFile = vmFiles[0].absoluteFile.parentFile.resolve(vmFiles[0].nameWithoutExtension + ".asm")
-    if (indexOfOutFile > 0) {
-        asmFile = File(args[indexOfOutFile + 1])
-    }
-    asmFile.delete()
-    asmFile.createNewFile()
-    return Pair(vmFiles, asmFile)
+    val asmFile = if (indexOfOutFile != -1) if (args.lastIndex >= indexOfOutFile + 1) File(args[indexOfOutFile + 1]) else File("Main.asm") else null
+    return Pair(dirs, asmFile)
 }
 
-fun parseVmLine(fileName : String, lineStr: String, index: Int): VmCommand? {
-    if (lineStr.startsWith("//") || lineStr.trim().isEmpty()) return null
-    return VmLine(fileName, lineStr, index).parseCommand()
-}
+

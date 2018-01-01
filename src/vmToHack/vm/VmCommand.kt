@@ -13,29 +13,29 @@ sealed class VmCommand {
 
     sealed class BinaryCommand(val binaryOpCode: BinaryOpCode) : VmCommand() {
 
-        class Add : BinaryCommand(BinaryOpCode.ADD)
+        object Add : BinaryCommand(BinaryOpCode.ADD)
 
-        class Sub : BinaryCommand(BinaryOpCode.SUB)
+        object Sub : BinaryCommand(BinaryOpCode.SUB)
 
-        class And : BinaryCommand(BinaryOpCode.AND)
+        object And : BinaryCommand(BinaryOpCode.AND)
 
-        class Or : BinaryCommand(BinaryOpCode.OR)
+        object Or : BinaryCommand(BinaryOpCode.OR)
     }
 
     sealed class UnaryCommand(val unaryOpCode: UnaryOpCode) : VmCommand() {
 
-        class Neg : UnaryCommand(UnaryOpCode.NEGATIVE)
+        object Neg : UnaryCommand(UnaryOpCode.NEGATIVE)
 
-        class Not : UnaryCommand(UnaryOpCode.NOT)
+        object Not : UnaryCommand(UnaryOpCode.NOT)
     }
 
     sealed class ComparisionCommand(val compSign : CompSign) : VmCommand() {
 
-        class Eq : ComparisionCommand(CompSign.EQ)
+        object Eq : ComparisionCommand(CompSign.EQ)
 
-        class Gt : ComparisionCommand(CompSign.GT)
+        object Gt : ComparisionCommand(CompSign.GT)
 
-        class Lt : ComparisionCommand(CompSign.LT)
+        object Lt : ComparisionCommand(CompSign.LT)
     }
 
     class Label(val labelName : String) : VmCommand()
@@ -48,7 +48,9 @@ sealed class VmCommand {
 
     class Call(val funcName: String, val nArgs: Int) : VmCommand()
 
-    class Return : VmCommand()
+    object Return : VmCommand()
+
+    class Comment(val comment : String) : VmCommand()
 
 }
 
