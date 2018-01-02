@@ -73,7 +73,7 @@ sealed class Node {
     }
     class OpTerm(val op: Op, val term: Term) : Node()
     sealed class Term : Node() {
-        class Expression(val term: Term, val opTerm: List<OpTerm>) : Term()
+        class Expression(val term: Term, val opTerms: List<OpTerm>) : Term()
         sealed class Const(val codeLocation: CodeLocation) : Term() {
             class IntConst(val intConst: Int, codeLocation: CodeLocation) : Const(codeLocation)
             class StringConst(val stringConst: String, codeLocation: CodeLocation) : Const(codeLocation)
@@ -91,74 +91,5 @@ sealed class Node {
     }
     class SubroutineSource(val varOrClassName: VarOrClassName) : Node()
 
-    fun printTo(appendable: Appendable) {
-        appendable.apply { appendNode(this@Node) }
-    }
-
-    private fun Appendable.appendNode(
-            node: Node,
-            prefix: String = "",
-            isRoot: Boolean = true,
-            lastInPeers: Boolean = true
-    ) {
-
-        val memberProperties = node::class.memberProperties
-        val props = mutableListOf<Pair<String,String>>()
-        val children = mutableListOf<Node>()
-        memberProperties.forEach { p ->
-            @Suppress("UNCHECKED_CAST")
-            p as KProperty1<Node, Any?>
-            val name = p.name
-            val value = p.get(node)
-            if (p.name != "codeLocation") {
-                @Suppress("UNCHECKED_CAST")
-                when (value) {
-                    is Node -> children += value
-                    is Collection<*> -> children.addAll(value as Collection<Node>)
-                    else -> props += name to value.toString()
-                }
-            }
-        }
-
-
-        append(prefix)
-        if (!isRoot) {
-            append(if (lastInPeers) "└── " else "├── ")
-        } else {
-            append(" ── ")
-        }
-        appendTitle(node.javaClass.simpleName, props)
-        append('\n')
-
-        val indentation = if (isRoot) "    " else "    "
-        children.forEachIndexed { index, child ->
-            if (index != children.lastIndex) {
-                appendNode(child, prefix + if (lastInPeers) indentation else "│   ", false, false)
-            } else {
-                appendNode(child, prefix + if (lastInPeers) indentation else "│   ", false, true)
-            }
-        }
-
-//        
-//        repeat(offset) { append(" ") }
-//        append(if (slash) "\\ " else "| ")
-//        appendHeader(node.javaClass.simpleName, props)
-//        append(")\n")
-//        children.forEachIndexed { index, value ->
-//            appendNode(value, offset + 1, index == 0)
-//        }
-    }
-
-    private fun Appendable.appendTitle(title: String, props: Iterable<Pair<String, String>>) {
-        append(title)
-        append("(")
-        props.joinTo(this, separator = "; ") { (name, value) ->
-            append(name)
-            append(" = ")
-            append(value)
-            ""
-        }
-        append(")")
-    }
 }
 

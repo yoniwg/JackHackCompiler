@@ -213,7 +213,7 @@ class CodeGeneration(private val jackFileName : String, private val classNode: N
 
     private fun Node.Term.resolveType() : Node.TypeOrVoid = when (this){
 
-        is Node.Term.Expression -> if (opTerm.isEmpty()) { term.resolveType()} else { opTerm[0].term.resolveType() }
+        is Node.Term.Expression -> if (opTerms.isEmpty()) { term.resolveType()} else { opTerms.last().op.retType }
         is Node.Term.Const.IntConst -> Node.TypeOrVoid.Type.IntType
         is Node.Term.Const.StringConst -> stringClassType
         is Node.Term.Const.BooleanConst -> Node.TypeOrVoid.Type.BooleanType
@@ -229,24 +229,17 @@ class CodeGeneration(private val jackFileName : String, private val classNode: N
     private fun Node.Term.generateCode(isStatic : Boolean, lvalueType : Node.TypeOrVoid) : List<VmCommand>{
         return when(this){
             is Node.Term.Expression -> {
-                if (opTerm.isEmpty()){
+                if (opTerms.isEmpty()){
                     term.generateCode(isStatic, lvalueType)
                 } else {
                     term.generateCode(isStatic, Node.TypeOrVoid.Any) +
-                    opTerm.mapIndexed{ i, it ->
-                        val nextType = if ( i==opTerm.lastIndex ) lvalueType else opTerm[i+1].op.onType
+                    opTerms.mapIndexed{ i, it ->
+                        val nextType = if ( i== opTerms.lastIndex ) lvalueType else opTerms[i+1].op.onType
                         assertSameType(nextType, it.op.retType)
-                        it.term.generateCode(isStatic, if (i==0) term.resolveType() else opTerm[i-1].op.retType) + it.op.vmCommand
+                        it.term.generateCode(isStatic, if (i==0) term.resolveType() else opTerms[i-1].op.retType) + it.op.vmCommand
                     }.flatten()
 
                 }
-//                return if (opTerm.isNotEmpty()){
-//                    assertSameType(lvalueType, opTerm.op.retType,"'${opTerm.op}' doesn't return '${lvalueType::class.simpleName}'")
-//                    val termType = term.resolveType()
-//                    term.generateCode(isStatic, termType) + opTerm.generateCode(isStatic, termType)
-//                }else {
-//                    term.generateCode(isStatic, lvalueType)
-//                }
             }
             is Node.Term.Const.IntConst -> {
                 assertSameType(lvalueType, Node.TypeOrVoid.Type.IntType)

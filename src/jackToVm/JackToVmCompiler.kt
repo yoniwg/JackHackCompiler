@@ -2,6 +2,7 @@ package jackToVm
 
 import jackToVm.codeGen.ApiDefining
 import jackToVm.codeGen.CodeGeneration
+import jackToVm.compilerElements.NodePrint
 import jackToVm.lexical.LexicalParser
 import jackToVm.syntactic.ProgramStructureVar
 import jackToVm.syntactic.SyntacticParser
@@ -60,7 +61,7 @@ class JackToVmCompiler(private val jackFiles: List<File>) {
             nodes.forEach{ (_, sp)->
                 ApiDefining(sp.classNode).defineApi()
             }
-            nodes.forEach{(_, sp)->sp.classNode.printTo(System.out)}
+            with(NodePrint()){nodes.forEach{ (_, sp)->sp.classNode.printTo(System.out)}}
 
             return nodes.mapValues { CodeGeneration(it.key, it.value.classNode).generateCode() }
     }
