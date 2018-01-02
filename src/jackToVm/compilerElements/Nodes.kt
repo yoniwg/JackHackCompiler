@@ -43,7 +43,7 @@ sealed class Node {
             : SubroutineDec(retType, subroutineName, parametersList, subroutineBody)
     }
     class ParameterDec(val type: Type, val paramName : VarName) : Node()
-    class SubroutineBody(val varDecs: List<VarDec>, val statements : List<Statement>, val returnStatement: ReturnStatement) : Node()
+    class SubroutineBody(val varDecs: List<VarDec>, val statements : List<Statement>) : Node()
     class VarDec(val type: Type, val varNames: List<VarName>) : Node()
     class ClassName(val className : String, val codeLocation: CodeLocation) : Node(){
         override fun equals(other: Any?): Boolean {
@@ -69,8 +69,8 @@ sealed class Node {
         class IfStatement(val condition: Expression, val statements: List<Statement>, val elseStatements: List<Statement>, codeLocation : CodeLocation) : Statement(codeLocation)
         class WhileStatement(val condition: Expression, val statements: List<Statement>, codeLocation : CodeLocation) : Statement(codeLocation)
         class DoStatement(val subroutineCall: SubroutineCall, codeLocation : CodeLocation) : Statement(codeLocation)
+        class ReturnStatement(val returnExpression: Expression?, codeLocation : CodeLocation) : Statement(codeLocation)
     }
-    class ReturnStatement(val returnExpression: Expression?, val codeLocation : CodeLocation) : Node()
     class OpTerm(val op: Op, val term: Term) : Node()
     sealed class Term : Node() {
         class Expression(val term: Term, val opTerm: List<OpTerm>) : Term()

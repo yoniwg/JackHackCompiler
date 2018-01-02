@@ -5,7 +5,7 @@ import jackToVm.compilerElements.Node
 import jackToVm.compilerElements.Symbol
 
 fun listStatements(sp: SyntacticParser): List<Node.Statement> {
-    var curToken = Terminal(Keyword.LET, Keyword.IF, Keyword.WHILE, Keyword.DO)
+    var curToken = Terminal(Keyword.LET, Keyword.IF, Keyword.WHILE, Keyword.DO, Keyword.RETURN)
             .matchingOrNull(sp.tipToken)
 
     val statementsList = mutableListOf<Node.Statement>()
@@ -15,9 +15,10 @@ fun listStatements(sp: SyntacticParser): List<Node.Statement> {
             Keyword.IF -> StatementVar.IfStatement.generateNode(sp)
             Keyword.WHILE -> StatementVar.WhileStatement.generateNode(sp)
             Keyword.DO -> StatementVar.DoStatement.generateNode(sp)
+            Keyword.RETURN -> StatementVar.ReturnStatement.generateNode(sp)
             else -> throw RuntimeException("Shouldn't be else here")
         })
-        curToken = Terminal(Keyword.LET, Keyword.IF, Keyword.WHILE, Keyword.DO)
+        curToken = Terminal(Keyword.LET, Keyword.IF, Keyword.WHILE, Keyword.DO, Keyword.RETURN)
                 .matchingOrNull(sp.tipToken)
     }
     return statementsList
@@ -97,13 +98,13 @@ sealed class StatementVar : Variable(){
     }
 
     object ReturnStatement : StatementVar() {
-        override fun generateNode(sp: SyntacticParser): Node.ReturnStatement {
+        override fun generateNode(sp: SyntacticParser): Node.Statement.ReturnStatement {
             val codeLocation = sp.tipToken.codeLocation
             Terminal(Keyword.RETURN).assert(sp.nextToken())
             val expression =
                     if (Terminal(Symbol.SEMI_COL).check(sp.tipToken)) null
                     else ExpressionVar.Expression.generateNode(sp)
-            val returnNode = Node.ReturnStatement(expression, codeLocation)
+            val returnNode = Node.Statement.ReturnStatement(expression, codeLocation)
             Terminal(Symbol.SEMI_COL).assert(sp.nextToken())
             return returnNode
         }

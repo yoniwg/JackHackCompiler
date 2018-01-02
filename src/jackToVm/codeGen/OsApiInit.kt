@@ -45,8 +45,8 @@ val functions : MutableMap<String, MutableMap<String, TypedSubroutine>> = mutabl
         )),
         Pair(
                 "Memory", mutableMapOf(
-                Pair("poke", TypedSubroutine(FUNCTION, "Memory", IntType, listOf(IntType))),
-                Pair("peek", TypedSubroutine(FUNCTION, "Memory", Void, listOf(IntType, IntType))),
+                Pair("peek", TypedSubroutine(FUNCTION, "Memory", IntType, listOf(IntType))),
+                Pair("poke", TypedSubroutine(FUNCTION, "Memory", Void, listOf(IntType, IntType))),
                 Pair("alloc", TypedSubroutine(FUNCTION, "Memory", ClassType("Array".vmClassName()), listOf(IntType))),
                 Pair("deAlloc", TypedSubroutine(FUNCTION, "Memory", Void, listOf(ClassType("Array".vmClassName()))))
         )),

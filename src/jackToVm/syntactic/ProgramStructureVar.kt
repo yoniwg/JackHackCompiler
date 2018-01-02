@@ -108,9 +108,8 @@ sealed class ProgramStructureVar : Variable(){
             Terminal(Symbol.L_PAR_CRL).assert(sp.nextToken())
             val varDecs = listVarDecs(sp)
             val statements = listStatements(sp)
-            val returnStatements = StatementVar.ReturnStatement.generateNode(sp)
             Terminal(Symbol.R_PAR_CRL).assert(sp.nextToken())
-            return Node.SubroutineBody(varDecs, statements, returnStatements)
+            return Node.SubroutineBody(varDecs, statements)
         }
     }
 

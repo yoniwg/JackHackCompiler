@@ -108,8 +108,10 @@ class CodeGeneration(private val jackFileName : String, private val classNode: N
         if (!isStatic) StackMember.addVariable(THIS, thisVarName, thisClassType)
         if (subroutineKind == SubroutineKind.METHOD) StackMember.addVariable(ARG, Node.VarName("this", CodeLocation(File(""),-1)),thisClassType)
         parametersList.forEach { it.addToSymbolsTableStack()}
+        if (subroutineBody.statements.none{it.containsReturnStatement()})
+            throw VmCodeGenerationException(subroutineName.codeLocation, "${subroutineName.subroutineName}: not all scopes have return statement")
         val varsCount = subroutineBody.varDecs.map { it.varNames.count() }.sum()
-        return listOf(VmCommand.Function("${className.className}.${subroutineName.subroutineName}", varsCount)) +
+        val commands =  listOf(VmCommand.Function("${className.className}.${subroutineName.subroutineName}", varsCount)) +
                 when (this) {
                     is Node.SubroutineDec.ConstructorDec -> {
                         listOf(VmCommand.Push(VmSegment.Constant(fieldsCount)),
@@ -122,6 +124,8 @@ class CodeGeneration(private val jackFileName : String, private val classNode: N
                     }
                     is Node.SubroutineDec.FunctionDec -> emptyList()
                 } + subroutineBody.generateCode(isStatic, retType)
+        StackMember.initStack()
+        return commands
     }
 
     private fun Node.ParameterDec.addToSymbolsTableStack() {
@@ -130,14 +134,23 @@ class CodeGeneration(private val jackFileName : String, private val classNode: N
 
     private fun Node.SubroutineBody.generateCode(isStatic : Boolean, subroutineRetType : Node.TypeOrVoid) : List<VmCommand>{
         varDecs.forEach { it.addToSymbolsTableStack()}
-        return statements.flatMap { it.generateCode(isStatic)} + returnStatement.generateCode(isStatic, subroutineRetType)
+        return statements.flatMap { it.generateCode(isStatic, subroutineRetType) }
     }
 
     private fun Node.VarDec.addToSymbolsTableStack(){
         varNames.forEach { it.addToSymbolsTableStack(VAR, type)}
     }
 
-    private fun Node.Statement.generateCode(isStatic: Boolean) : List<VmCommand> = try{
+    private fun Node.Statement.containsReturnStatement() : Boolean = when (this){
+
+        is Node.Statement.LetStatement -> false
+        is Node.Statement.IfStatement -> statements.any {it.containsReturnStatement()} && elseStatements.any {it.containsReturnStatement()}
+        is Node.Statement.WhileStatement -> statements.any { it.containsReturnStatement() }
+        is Node.Statement.DoStatement -> false
+        is Node.Statement.ReturnStatement -> true
+    }
+
+    private fun Node.Statement.generateCode(isStatic: Boolean, subroutineRetType : Node.TypeOrVoid) : List<VmCommand> = try{
         listOf(VmCommand.Comment("${this.javaClass.simpleName} at ${codeLocation.lineNumber}")) +
                 when (this){
                     is Node.Statement.LetStatement -> {
@@ -162,10 +175,10 @@ class CodeGeneration(private val jackFileName : String, private val classNode: N
                         condition.generateCode(isStatic, Node.TypeOrVoid.Type.BooleanType) +
                                 VmCommand.UnaryCommand.Not +
                                 VmCommand.IfGoto(elseLabel) +
-                                statements.flatMap { it.generateCode(isStatic) } +
+                                statements.flatMap { it.generateCode(isStatic, subroutineRetType) } +
                                 VmCommand.Goto(endLabel) +
                                 VmCommand.Label(elseLabel) +
-                                elseStatements.flatMap { it.generateCode(isStatic) } +
+                                elseStatements.flatMap { it.generateCode(isStatic, subroutineRetType) } +
                                 VmCommand.Label(endLabel)
                     }
                     is Node.Statement.WhileStatement -> {
@@ -175,30 +188,28 @@ class CodeGeneration(private val jackFileName : String, private val classNode: N
                                 condition.generateCode(isStatic, Node.TypeOrVoid.Type.BooleanType) +
                                 VmCommand.UnaryCommand.Not +
                                 VmCommand.IfGoto(endLabel) +
-                                statements.flatMap { it.generateCode(isStatic) } +
+                                statements.flatMap { it.generateCode(isStatic, subroutineRetType) } +
                                 VmCommand.Goto(loopLabel) +
                                 VmCommand.Label(endLabel)
                     }
                     is Node.Statement.DoStatement -> subroutineCall.generateCode(isStatic, Node.TypeOrVoid.Any)+
                             VmCommand.Pop(VmSegment.StaticSeg.Temp(0))
 
+                    is Node.Statement.ReturnStatement -> {
+                        try{
+                            if ((subroutineRetType is Node.TypeOrVoid.Void) != (returnExpression == null)) {
+                                throw TypeMismatchException("")
+                            }
+                            (returnExpression?.generateCode(isStatic, subroutineRetType) ?:
+                                    listOf(VmCommand.Push(VmSegment.Constant(0)))) +
+                                    VmCommand.Return
+                        }catch (e : TypeMismatchException){
+                            throw VmCodeGenerationException(codeLocation, "Subroutine return type must fit its declaration")
+                        }
+                    }
                 }
     } catch (e : Exception) {if (e !is VmCodeGenerationException) throw VmCodeGenerationException(codeLocation, e.message ?: "Unknown Error", e) else throw e}
 
-    private fun Node.ReturnStatement.generateCode(isStatic: Boolean, subroutineRetType: Node.TypeOrVoid) : List<VmCommand>{
-        try{
-            if ((subroutineRetType is Node.TypeOrVoid.Void) != (returnExpression == null)) {
-                throw TypeMismatchException("")
-            }
-            val commands = (returnExpression?.generateCode(isStatic, subroutineRetType) ?:
-                    listOf(VmCommand.Push(VmSegment.Constant(0)))) +
-                    VmCommand.Return
-            StackMember.initStack()
-            return commands
-        }catch (e : TypeMismatchException){
-            throw VmCodeGenerationException(codeLocation, "Subroutine return type must fit its declaration")
-        }
-    }
 
     private fun Node.Term.resolveType() : Node.TypeOrVoid = when (this){
 
