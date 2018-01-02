@@ -21,11 +21,12 @@ val Op.vmCommand get() = when(this){
     Op.EQUAL -> VmCommand.ComparisionCommand.Eq
 }
 
-val Op.onTypes get() = when (this){
+val Op.onType
+    get() = when (this){
     Op.ADD, Op.SUB, Op.DIV, Op.MULT,
-    Op.LT, Op.GT -> listOf(Node.TypeOrVoid.Type.IntType::class)
-    Op.EQUAL -> listOf(Node.TypeOrVoid.Type::class)
-    Op.AND ,Op.OR -> listOf(Node.TypeOrVoid.Type.BooleanType::class)
+    Op.LT, Op.GT -> Node.TypeOrVoid.Type.IntType
+    Op.EQUAL -> Node.TypeOrVoid.Any
+    Op.AND ,Op.OR -> Node.TypeOrVoid.Type.BooleanType
 }
 
 val Op.retType get() = when (this){
@@ -57,7 +58,7 @@ class CodeGeneration(private val jackFileName : String, private val classNode: N
 
     private lateinit var className : Node.ClassName
 
-    var lc = 0;
+    var lc = 0
 
 
     enum class VarKind {
@@ -81,22 +82,10 @@ class CodeGeneration(private val jackFileName : String, private val classNode: N
             throw Exception("Class name must be as same as file name")
         }
         this@CodeGeneration.className = this.className
-        val fieldsCount = classVarDecs?.count() ?: 0
-        return subroutineDecs?.generateCode(fieldsCount).orEmpty()
+        val fieldsCount = classVarDecs.map { it.varNames.count() }.sum()
+        return subroutineDecs.flatMap { it.generateCode(fieldsCount)}
     }
 
-    private fun Node.ClassVarDecs.count() : Int = classVarDec.varNames.count() + classVarDecs?.count().orZero()
-    private fun Node.VarNames.count() : Int = 1 + varNames?.count().orZero()
-
-    private fun Node.SubroutineDecs.generateCode(fieldsCount: Int): List<VmCommand>{
-        return subroutineDec.generateCode(fieldsCount) +
-                subroutineDecs?.generateCode(fieldsCount).orEmpty()
-    }
-
-    private fun Node.VarNames.addToSymbolsTableStack(varKind: CodeGeneration.VarKind, type: Node.TypeOrVoid){
-        varName.addToSymbolsTableStack(varKind, type)
-        varNames?.addToSymbolsTableStack(varKind,type)
-    }
 
     private fun Node.VarName.addToSymbolsTableStack(varKind: VarKind, type: Node.TypeOrVoid){
         when (varKind) {
@@ -118,8 +107,8 @@ class CodeGeneration(private val jackFileName : String, private val classNode: N
         val isStatic = subroutineKind == SubroutineKind.FUNCTION
         if (!isStatic) StackMember.addVariable(THIS, thisVarName, thisClassType)
         if (subroutineKind == SubroutineKind.METHOD) StackMember.addVariable(ARG, Node.VarName("this", CodeLocation(File(""),-1)),thisClassType)
-        parametersList?.addToSymbolsTableStack()
-        val varsCount = subroutineBody.varDecs?.count() ?: 0
+        parametersList.forEach { it.addToSymbolsTableStack()}
+        val varsCount = subroutineBody.varDecs.map { it.varNames.count() }.sum()
         return listOf(VmCommand.Function("${className.className}.${subroutineName.subroutineName}", varsCount)) +
                 when (this) {
                     is Node.SubroutineDec.ConstructorDec -> {
@@ -135,35 +124,18 @@ class CodeGeneration(private val jackFileName : String, private val classNode: N
                 } + subroutineBody.generateCode(isStatic, retType)
     }
 
-    private fun Node.VarDecs.count() : Int = varDec.varNames.count() + varDecs?.count().orZero()
-
-    private fun Node.ParametersList.addToSymbolsTableStack() {
-        parameterDec.addToSymbolsTableStack()
-        parametersList?.addToSymbolsTableStack()
-    }
     private fun Node.ParameterDec.addToSymbolsTableStack() {
         paramName.addToSymbolsTableStack(ARG, type)
     }
 
     private fun Node.SubroutineBody.generateCode(isStatic : Boolean, subroutineRetType : Node.TypeOrVoid) : List<VmCommand>{
-        varDecs?.addToSymbolsTableStack()
-        return statements.generateCode(isStatic) + returnStatement.generateCode(isStatic, subroutineRetType)
-    }
-
-    private fun Node.VarDecs.addToSymbolsTableStack(){
-        varDec.addToSymbolsTableStack()
-        varDecs?.addToSymbolsTableStack()
+        varDecs.forEach { it.addToSymbolsTableStack()}
+        return statements.flatMap { it.generateCode(isStatic)} + returnStatement.generateCode(isStatic, subroutineRetType)
     }
 
     private fun Node.VarDec.addToSymbolsTableStack(){
-        varNames.addToSymbolsTableStack(VAR, type)
+        varNames.forEach { it.addToSymbolsTableStack(VAR, type)}
     }
-
-    private fun Node.Statements.generateCode(isStatic: Boolean) : List<VmCommand>{
-        return statement?.generateCode(isStatic).orEmpty() +
-                statements?.generateCode(isStatic).orEmpty()
-    }
-
 
     private fun Node.Statement.generateCode(isStatic: Boolean) : List<VmCommand> = try{
         listOf(VmCommand.Comment("${this.javaClass.simpleName} at ${codeLocation.lineNumber}")) +
@@ -190,10 +162,10 @@ class CodeGeneration(private val jackFileName : String, private val classNode: N
                         condition.generateCode(isStatic, Node.TypeOrVoid.Type.BooleanType) +
                                 VmCommand.UnaryCommand.Not +
                                 VmCommand.IfGoto(elseLabel) +
-                                statements.generateCode(isStatic) +
+                                statements.flatMap { it.generateCode(isStatic) } +
                                 VmCommand.Goto(endLabel) +
                                 VmCommand.Label(elseLabel) +
-                                elseStatements?.generateCode(isStatic).orEmpty() +
+                                elseStatements.flatMap { it.generateCode(isStatic) } +
                                 VmCommand.Label(endLabel)
                     }
                     is Node.Statement.WhileStatement -> {
@@ -203,7 +175,7 @@ class CodeGeneration(private val jackFileName : String, private val classNode: N
                                 condition.generateCode(isStatic, Node.TypeOrVoid.Type.BooleanType) +
                                 VmCommand.UnaryCommand.Not +
                                 VmCommand.IfGoto(endLabel) +
-                                statements.generateCode(isStatic) +
+                                statements.flatMap { it.generateCode(isStatic) } +
                                 VmCommand.Goto(loopLabel) +
                                 VmCommand.Label(endLabel)
                     }
@@ -227,15 +199,10 @@ class CodeGeneration(private val jackFileName : String, private val classNode: N
             throw VmCodeGenerationException(codeLocation, "Subroutine return type must fit its declaration")
         }
     }
-    private fun Node.OpTerm.generateCode(isStatic : Boolean, lvalueType : Node.TypeOrVoid) : List<VmCommand> {
-        assertOpForType(lvalueType, op)
-        return term.generateCode(isStatic, lvalueType) + op.vmCommand
-    }
-
 
     private fun Node.Term.resolveType() : Node.TypeOrVoid = when (this){
 
-        is Node.Term.Expression -> if (opTerm == null) { term.resolveType()} else { opTerm.op.retType }
+        is Node.Term.Expression -> if (opTerm.isEmpty()) { term.resolveType()} else { opTerm[0].term.resolveType() }
         is Node.Term.Const.IntConst -> Node.TypeOrVoid.Type.IntType
         is Node.Term.Const.StringConst -> stringClassType
         is Node.Term.Const.BooleanConst -> Node.TypeOrVoid.Type.BooleanType
@@ -251,13 +218,24 @@ class CodeGeneration(private val jackFileName : String, private val classNode: N
     private fun Node.Term.generateCode(isStatic : Boolean, lvalueType : Node.TypeOrVoid) : List<VmCommand>{
         return when(this){
             is Node.Term.Expression -> {
-                return if (opTerm != null){
-                    assertSameType(lvalueType,opTerm.op.retType,"'${opTerm.op}' doesn't return '${lvalueType::class.simpleName}'")
-                    val termType = term.resolveType()
-                    term.generateCode(isStatic, termType) + opTerm.generateCode(isStatic, termType)
-                }else {
+                if (opTerm.isEmpty()){
                     term.generateCode(isStatic, lvalueType)
+                } else {
+                    term.generateCode(isStatic, Node.TypeOrVoid.Any) +
+                    opTerm.mapIndexed{ i, it ->
+                        val nextType = if ( i==opTerm.lastIndex ) lvalueType else opTerm[i+1].op.onType
+                        assertSameType(nextType, it.op.retType)
+                        it.term.generateCode(isStatic, if (i==0) term.resolveType() else opTerm[i-1].op.retType) + it.op.vmCommand
+                    }.flatten()
+
                 }
+//                return if (opTerm.isNotEmpty()){
+//                    assertSameType(lvalueType, opTerm.op.retType,"'${opTerm.op}' doesn't return '${lvalueType::class.simpleName}'")
+//                    val termType = term.resolveType()
+//                    term.generateCode(isStatic, termType) + opTerm.generateCode(isStatic, termType)
+//                }else {
+//                    term.generateCode(isStatic, lvalueType)
+//                }
             }
             is Node.Term.Const.IntConst -> {
                 assertSameType(lvalueType, Node.TypeOrVoid.Type.IntType)
@@ -314,8 +292,10 @@ class CodeGeneration(private val jackFileName : String, private val classNode: N
                 return if (typedSubroutine.subroutineKind == SubroutineKind.METHOD) {
                     subroutineSource?.generateCode() ?: listOf(VmCommand.Push( VmSegment.StaticSeg.Pointer(0)))
                 } else {emptyList()} +
-                        if ((expressionsList == null) == typedSubroutine.parametersList.isEmpty()) {
-                            expressionsList?.generateCode(isStatic, typedSubroutine.parametersList).orEmpty()
+                        if (expressionsList.count() == typedSubroutine.parametersList.count()) {
+                            expressionsList.mapIndexed { index, expression ->
+                                expression.generateCode(isStatic, typedSubroutine.parametersList[index])
+                            }.flatten()
                         } else { throw Exception("number of subroutine arguments mismatch deceleration") } +
                         VmCommand.Call(typedSubroutine.ownerClassName + "." +
                                 subroutineName.subroutineName, typedSubroutine.parametersList.size
@@ -332,23 +312,6 @@ class CodeGeneration(private val jackFileName : String, private val classNode: N
     private fun Node.SubroutineSource.generateCode() : List<VmCommand>{
         val indexedVar = SymbolsTable.getVarOrFieldOrStatic(varOrClassName, className)
         return listOf(VmCommand.Push(indexedVar.varKind.getSegmentAt(indexedVar.index)))
-    }
-    private fun Node.ExpressionsList.generateCode(isStatic: Boolean, parametersList: List<Node.TypeOrVoid>): List<VmCommand>{
-        val choppedParametersList = parametersList.drop(1)
-        return try{
-            expression.generateCode(isStatic, parametersList[0])
-        } catch (e : TypeMismatchException) { throw Exception("subroutine arguments mismatch declaration")} +
-                if ((expressionsList == null) == choppedParametersList.isEmpty()){
-                    expressionsList?.generateCode(isStatic, choppedParametersList).orEmpty()
-                } else{
-                    throw Exception("number of subroutine arguments mismatch declaration")
-                }
-    }
-
-    private fun assertOpForType(lValType: Node.TypeOrVoid, op: Op) {
-        if (!op.onTypes.any { it.isInstance(lValType) }){
-            throw TypeMismatchException("$op doesn't fit for these values type")
-        }
     }
 
     private fun assertSameType(lValType: Node.TypeOrVoid, rValType: Node.TypeOrVoid, msg: String? = null) {

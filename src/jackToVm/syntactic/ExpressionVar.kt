@@ -12,11 +12,11 @@ sealed class ExpressionVar : Variable(){
     object Expression : ExpressionVar() {
         override fun generateNode(sp: SyntacticParser): Node.Term.Expression {
             val term = Term.generateNode(sp)
-            val opTerm =
-            if (opTerminal.check(sp.tipToken)){
-                OpTerm.generateNode(sp)
-            } else null
-            return Node.Term.Expression(term, opTerm)
+            val opTermsList = mutableListOf<Node.OpTerm>()
+            while (opTerminal.check(sp.tipToken)){
+                opTermsList.add(OpTerm.generateNode(sp))
+            }
+            return Node.Term.Expression(term, opTermsList)
         }
     }
 
@@ -44,7 +44,7 @@ sealed class ExpressionVar : Variable(){
                 Symbol.ASSIGN -> Op.EQUAL
                 else -> throw RuntimeException("Shouldn't be else here")
             }
-            return Node.OpTerm(op, Expression.generateNode(sp))
+            return Node.OpTerm(op, Term.generateNode(sp))
         }
     }
 
@@ -104,26 +104,26 @@ sealed class ExpressionVar : Variable(){
                 subroutineName = ProgramStructureVar.SubroutineName.generateNode(sp)
                 Terminal(Symbol.L_PAR_RND).matchingOrThrow(sp.nextToken())
             }
-            val expressionsList : Node.ExpressionsList? =
+            val expressionsList  =
             if (!Terminal(Symbol.R_PAR_RND).check(sp.tipToken)){
-                ExpressionsList.generateNode(sp)
+                listExpressions(sp)
 
-            } else null
+            } else emptyList()
             Terminal(Symbol.R_PAR_RND).assert(sp.nextToken())
             return Node.Term.IdentifierTerm.SubroutineCall(subroutineSource,subroutineName,expressionsList)
         }
     }
 
-    object ExpressionsList : ExpressionVar() {
-        override fun generateNode(sp: SyntacticParser): Node.ExpressionsList {
-            val expression = Expression.generateNode(sp)
-            if (Terminal(Symbol.COMMA).check(sp.tipToken)){
-                sp.nextToken()
-                return Node.ExpressionsList(expression, ExpressionsList.generateNode(sp))
-            }
-            return Node.ExpressionsList(expression, null)
+
+    fun listExpressions(sp: SyntacticParser): List<Node.Term.Expression> {
+        val expressions = mutableListOf(Expression.generateNode(sp))
+        while (Terminal(Symbol.COMMA).check(sp.tipToken)){
+            sp.nextToken()
+            expressions.add(Expression.generateNode(sp))
         }
+        return expressions
     }
+
 
     object ParenthesizedExpressionOrNull : ExpressionVar() {
         override fun generateNode(sp: SyntacticParser): Node.Term.Expression? {

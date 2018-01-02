@@ -16,12 +16,10 @@ enum class UnaryOp { NEGATIVE, NOT}
 typealias CharType = Type.IntType
 sealed class Node {
     
-    class Class(val className: ClassName, val classVarDecs: ClassVarDecs?, val subroutineDecs: SubroutineDecs?) : Node()
-    class ClassVarDecs(val classVarDec: ClassVarDec, val classVarDecs: ClassVarDecs?) : Node()
-    class SubroutineDecs(val subroutineDec: SubroutineDec, val subroutineDecs: SubroutineDecs?) : Node()
-    sealed class ClassVarDec(val type: Type, val varNames: VarNames) : Node() {
-        class StaticClassVarDec(type: Type, varNames: VarNames) : ClassVarDec(type, varNames)
-        class FieldClassVarDec(type: Type, varNames: VarNames) : ClassVarDec(type, varNames)
+    class Class(val className: ClassName, val classVarDecs: List<ClassVarDec>, val subroutineDecs: List<SubroutineDec>) : Node()
+    sealed class ClassVarDec(val type: Type, val varNames: List<VarName>) : Node() {
+        class StaticClassVarDec(type: Type, varNames: List<VarName>) : ClassVarDec(type, varNames)
+        class FieldClassVarDec(type: Type, varNames: List<VarName>) : ClassVarDec(type, varNames)
     }
 
     sealed class TypeOrVoid : Node() {
@@ -34,22 +32,19 @@ sealed class Node {
         }
     }
 
-    class VarNames(val varName: VarName, val varNames: VarNames?) : Node()
-    sealed class SubroutineDec(val retType: TypeOrVoid, val subroutineName: SubroutineName, val parametersList: ParametersList?, val subroutineBody: SubroutineBody) : Node() {
-        class ConstructorDec(retType: TypeOrVoid, subroutineName: SubroutineName, parametersList: ParametersList?, subroutineBody: SubroutineBody)
+    sealed class SubroutineDec(val retType: TypeOrVoid, val subroutineName: SubroutineName, val parametersList: List<ParameterDec>, val subroutineBody: SubroutineBody) : Node() {
+        class ConstructorDec(retType: TypeOrVoid, subroutineName: SubroutineName, parametersList: List<ParameterDec>, subroutineBody: SubroutineBody)
             : SubroutineDec(retType, subroutineName, parametersList, subroutineBody)
 
-        class FunctionDec(retType: TypeOrVoid, subroutineName: SubroutineName, parametersList: ParametersList?, subroutineBody: SubroutineBody)
+        class FunctionDec(retType: TypeOrVoid, subroutineName: SubroutineName, parametersList: List<ParameterDec>, subroutineBody: SubroutineBody)
             : SubroutineDec(retType, subroutineName, parametersList, subroutineBody)
 
-        class MethodDec(retType: TypeOrVoid, subroutineName: SubroutineName, parametersList: ParametersList?, subroutineBody: SubroutineBody)
+        class MethodDec(retType: TypeOrVoid, subroutineName: SubroutineName, parametersList: List<ParameterDec>, subroutineBody: SubroutineBody)
             : SubroutineDec(retType, subroutineName, parametersList, subroutineBody)
     }
-    class ParametersList(val parameterDec : ParameterDec, val parametersList: ParametersList?) : Node()
     class ParameterDec(val type: Type, val paramName : VarName) : Node()
-    class SubroutineBody(val varDecs: VarDecs?, val statements : Statements, val returnStatement: ReturnStatement) : Node()
-    class VarDecs(val varDec : VarDec, val varDecs : VarDecs? = null) : Node()
-    class VarDec(val type: Type, val varNames: VarNames) : Node()
+    class SubroutineBody(val varDecs: List<VarDec>, val statements : List<Statement>, val returnStatement: ReturnStatement) : Node()
+    class VarDec(val type: Type, val varNames: List<VarName>) : Node()
     class ClassName(val className : String, val codeLocation: CodeLocation) : Node(){
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
@@ -69,17 +64,16 @@ sealed class Node {
     class SubroutineName(val subroutineName: String, val codeLocation: CodeLocation) : Node()
     class VarName(val varName : String, val codeLocation: CodeLocation) : Node()
     class VarOrClassName(val varOrClassName : String, val codeLocation: CodeLocation) : Node()
-    class Statements(val statement: Statement?, val statements: Statements?) : Node()
     sealed class Statement(val codeLocation: CodeLocation) : Node() {
         class LetStatement(val varName: VarName, val arrayOffset: Expression?, val initializer: Expression, codeLocation : CodeLocation) : Statement(codeLocation)
-        class IfStatement(val condition: Expression, val statements: Statements, val elseStatements: Statements?, codeLocation : CodeLocation) : Statement(codeLocation)
-        class WhileStatement(val condition: Expression, val statements: Statements, codeLocation : CodeLocation) : Statement(codeLocation)
+        class IfStatement(val condition: Expression, val statements: List<Statement>, val elseStatements: List<Statement>, codeLocation : CodeLocation) : Statement(codeLocation)
+        class WhileStatement(val condition: Expression, val statements: List<Statement>, codeLocation : CodeLocation) : Statement(codeLocation)
         class DoStatement(val subroutineCall: SubroutineCall, codeLocation : CodeLocation) : Statement(codeLocation)
     }
     class ReturnStatement(val returnExpression: Expression?, val codeLocation : CodeLocation) : Node()
     class OpTerm(val op: Op, val term: Term) : Node()
     sealed class Term : Node() {
-        class Expression(val term: Term, val opTerm: OpTerm?) : Term()
+        class Expression(val term: Term, val opTerm: List<OpTerm>) : Term()
         sealed class Const(val codeLocation: CodeLocation) : Term() {
             class IntConst(val intConst: Int, codeLocation: CodeLocation) : Const(codeLocation)
             class StringConst(val stringConst: String, codeLocation: CodeLocation) : Const(codeLocation)
@@ -90,15 +84,12 @@ sealed class Node {
         sealed class IdentifierTerm : Term() {
             class VarTerm(val varName: VarName) : IdentifierTerm()
             class VarArrayTerm(val varName: VarName, val arrayOffset: Expression) : IdentifierTerm()
-            class SubroutineCall(val subroutineSource: SubroutineSource?, val subroutineName: SubroutineName, val expressionsList: ExpressionsList?) : IdentifierTerm()
+            class SubroutineCall(val subroutineSource: SubroutineSource?, val subroutineName: SubroutineName, val expressionsList: List<Expression>) : IdentifierTerm()
         }
         class ExpressionTerm(val expression: Expression) : Term()
         class UnaryOp(val unaryOp: jackToVm.compilerElements.UnaryOp, val term: Term) : Term()
     }
     class SubroutineSource(val varOrClassName: VarOrClassName) : Node()
-//    class VarSubroutineSource(val varName : VarName) : SubroutineSource()
-//    class StaticSubroutineSource(val className : ClassName) : SubroutineSource()
-    class ExpressionsList(val expression: Expression, val expressionsList: ExpressionsList?) : Node()
 
     fun printTo(appendable: Appendable) {
         appendable.apply { appendNode(this@Node) }
@@ -120,8 +111,10 @@ sealed class Node {
             val name = p.name
             val value = p.get(node)
             if (p.name != "codeLocation") {
+                @Suppress("UNCHECKED_CAST")
                 when (value) {
                     is Node -> children += value
+                    is Collection<*> -> children.addAll(value as Collection<Node>)
                     else -> props += name to value.toString()
                 }
             }

@@ -15,25 +15,15 @@ class ApiDefining(val classNode: Node.Class){
     private fun Node.Class.addToSymbolsTableHeap(){
         this@ApiDefining.className = this.className
         Classes.addClass(className)
-        classVarDecs?.addToSymbolsTableHeap()
-        subroutineDecs?.addToSymbolsTableHeap()
-    }
-
-    private fun Node.ClassVarDecs.addToSymbolsTableHeap(){
-        classVarDec.addToSymbolsTableHeap()
-        classVarDecs?.addToSymbolsTableHeap()
+        classVarDecs.forEach { it.addToSymbolsTableHeap()}
+        subroutineDecs.forEach { it.addToSymbolsTableHeap()}
     }
 
     private fun Node.ClassVarDec.addToSymbolsTableHeap(){
         when (this){
-            is Node.ClassVarDec.StaticClassVarDec -> varNames.addToSymbolsTableHeap(STATIC,type)
-            is Node.ClassVarDec.FieldClassVarDec -> varNames.addToSymbolsTableHeap(FIELD,type)
+            is Node.ClassVarDec.StaticClassVarDec -> varNames.forEach { it.addToSymbolsTableHeap(STATIC,type)}
+            is Node.ClassVarDec.FieldClassVarDec -> varNames.forEach{ it.addToSymbolsTableHeap(FIELD,type)}
         }
-    }
-
-    private fun Node.VarNames.addToSymbolsTableHeap(varKind: CodeGeneration.VarKind, type: Node.TypeOrVoid){
-        varName.addToSymbolsTableHeap(varKind, type)
-        varNames?.addToSymbolsTableHeap(varKind,type)
     }
 
     private fun Node.VarName.addToSymbolsTableHeap(varKind: CodeGeneration.VarKind, type: Node.TypeOrVoid){
@@ -47,13 +37,7 @@ class ApiDefining(val classNode: Node.Class){
         }
     }
 
-    private fun Node.SubroutineDecs.addToSymbolsTableHeap(){
-        subroutineDec.addToSymbolsTableHeap()
-        subroutineDecs?.addToSymbolsTableHeap()
-    }
-
     private fun Node.SubroutineDec.addToSymbolsTableHeap(){
-        val parametersList =  parametersList?.aggregateDecs().orEmpty()
         val subroutineKind = when (this) {
             is Node.SubroutineDec.ConstructorDec -> CodeGeneration.SubroutineKind.CTOR
             is Node.SubroutineDec.FunctionDec -> CodeGeneration.SubroutineKind.FUNCTION
@@ -62,8 +46,5 @@ class ApiDefining(val classNode: Node.Class){
         HeapMember.addSubroutine(subroutineKind, className, subroutineName, retType, parametersList)
     }
 
-    private fun Node.ParametersList.aggregateDecs() : List<Node.ParameterDec>{
-        return listOf(parameterDec) + parametersList?.aggregateDecs().orEmpty()
-    }
 
 }

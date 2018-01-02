@@ -4,21 +4,28 @@ import jackToVm.compilerElements.Keyword
 import jackToVm.compilerElements.Node
 import jackToVm.compilerElements.Symbol
 
-sealed class StatementVar : Variable(){
-    object Statements : StatementVar() {
-        override fun generateNode(sp: SyntacticParser): Node.Statements {
-            val curToken =
-                    Terminal(Keyword.LET, Keyword.IF, Keyword.WHILE, Keyword.DO, Keyword.RETURN).matchingOrNull(sp.tipToken)
-            val statement = when (curToken){
-                Keyword.LET -> LetStatement.generateNode(sp)
-                Keyword.IF -> IfStatement.generateNode(sp)
-                Keyword.WHILE -> WhileStatement.generateNode(sp)
-                Keyword.DO -> DoStatement.generateNode(sp)
-                else -> return Node.Statements(null,null)
-            }
-            return Node.Statements(statement, Statements.generateNode(sp))
-        }
+fun listStatements(sp: SyntacticParser): List<Node.Statement> {
+    var curToken = Terminal(Keyword.LET, Keyword.IF, Keyword.WHILE, Keyword.DO)
+            .matchingOrNull(sp.tipToken)
+
+    val statementsList = mutableListOf<Node.Statement>()
+    while (curToken != null){
+        statementsList.add(when (curToken) {
+            Keyword.LET -> StatementVar.LetStatement.generateNode(sp)
+            Keyword.IF -> StatementVar.IfStatement.generateNode(sp)
+            Keyword.WHILE -> StatementVar.WhileStatement.generateNode(sp)
+            Keyword.DO -> StatementVar.DoStatement.generateNode(sp)
+            else -> throw RuntimeException("Shouldn't be else here")
+        })
+        curToken = Terminal(Keyword.LET, Keyword.IF, Keyword.WHILE, Keyword.DO)
+                .matchingOrNull(sp.tipToken)
     }
+    return statementsList
+}
+
+sealed class StatementVar : Variable(){
+
+
 
     object LetStatement : StatementVar() {
         override fun generateNode(sp: SyntacticParser): Node.Statement.LetStatement {
@@ -51,16 +58,16 @@ sealed class StatementVar : Variable(){
             val conditionExp = ExpressionVar.Expression.generateNode(sp)
             Terminal(Symbol.R_PAR_RND).assert(sp.nextToken())
             Terminal(Symbol.L_PAR_CRL).assert(sp.nextToken())
-            val trueStatements = Statements.generateNode(sp)
+            val trueStatements = listStatements(sp)
             Terminal(Symbol.R_PAR_CRL).assert(sp.nextToken())
             val falseStatements =
             if (Terminal(Keyword.ELSE).check(sp.tipToken)){
                 sp.nextToken()
                 Terminal(Symbol.L_PAR_CRL).assert(sp.nextToken())
-                val falseStatements = Statements.generateNode(sp)
+                val falseStatements = listStatements(sp)
                 Terminal(Symbol.R_PAR_CRL).assert(sp.nextToken())
                 falseStatements
-            } else null
+            } else emptyList()
             return Node.Statement.IfStatement(conditionExp,trueStatements,falseStatements, codeLocation)
         }
     }
@@ -73,7 +80,7 @@ sealed class StatementVar : Variable(){
             val conditionExp = ExpressionVar.Expression.generateNode(sp)
             Terminal(Symbol.R_PAR_RND).assert(sp.nextToken())
             Terminal(Symbol.L_PAR_CRL).assert(sp.nextToken())
-            val statements = Statements.generateNode(sp)
+            val statements = listStatements(sp)
             Terminal(Symbol.R_PAR_CRL).assert(sp.nextToken())
             return Node.Statement.WhileStatement(conditionExp,statements, codeLocation)
         }

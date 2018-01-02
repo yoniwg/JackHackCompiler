@@ -9,19 +9,23 @@ sealed class ProgramStructureVar : Variable(){
             Terminal(Keyword.CLASS).assert(sp.nextToken())
             val className = ClassName.generateNode(sp)
             Terminal(Symbol.L_PAR_CRL).assert(sp.nextToken())
-            val classVarDecs = ClassVarDecs.generateNode(sp)
-            val subroutineDecs = SubroutineDecs.generateNode(sp)
+            val classVarDecs = listClassVarDecs(sp)
+            val subroutineDecs = listSubroutineDecs(sp)
             Terminal(Symbol.R_PAR_CRL).assert(sp.nextToken())
             return Node.Class(className, classVarDecs, subroutineDecs)
         }
     }
 
-    object ClassVarDecs : ProgramStructureVar() {
-        override fun generateNode(sp: SyntacticParser): Node.ClassVarDecs? {
-            val classVarDec = ClassVarDec.generateNode(sp) ?: return null
-            return Node.ClassVarDecs(classVarDec, ClassVarDecs.generateNode(sp))
+    fun listClassVarDecs(sp: SyntacticParser): List<Node.ClassVarDec> {
+        val classVarDecsList = mutableListOf<Node.ClassVarDec>()
+        var classVarDec = ClassVarDec.generateNode(sp)
+        while (classVarDec != null){
+            classVarDecsList.add(classVarDec)
+            classVarDec = ClassVarDec.generateNode(sp)
         }
+        return classVarDecsList
     }
+
 
     object ClassVarDec : ProgramStructureVar() {
         override fun generateNode(sp: SyntacticParser): Node.ClassVarDec? {
@@ -29,7 +33,7 @@ sealed class ProgramStructureVar : Variable(){
                     return null
             sp.nextToken()
             val type = Type.generateNode(sp)
-            val varNames = VarNames.generateNode(sp)
+            val varNames = listVarNames(sp)
             Terminal(Symbol.SEMI_COL).assert(sp.nextToken())
             return when(decType) {
                 Keyword.STATIC -> Node.ClassVarDec.StaticClassVarDec(type, varNames)
@@ -54,11 +58,14 @@ sealed class ProgramStructureVar : Variable(){
         }
     }
 
-    object SubroutineDecs : ProgramStructureVar() {
-        override fun generateNode(sp: SyntacticParser): Node.SubroutineDecs? {
-            val subroutineDec = SubroutineDec.generateNode(sp) ?: return null
-            return Node.SubroutineDecs(subroutineDec, SubroutineDecs.generateNode(sp))
+    fun listSubroutineDecs(sp: SyntacticParser): List<Node.SubroutineDec> {
+        val subroutineDecsList = mutableListOf<Node.SubroutineDec>()
+        var subroutineDec = SubroutineDec.generateNode(sp)
+        while (subroutineDec != null){
+            subroutineDecsList.add(subroutineDec)
+            subroutineDec = SubroutineDec.generateNode(sp)
         }
+        return subroutineDecsList
     }
 
     object SubroutineDec : ProgramStructureVar() {
@@ -69,9 +76,14 @@ sealed class ProgramStructureVar : Variable(){
             val typeOrVoid = if (Terminal(Keyword.VOID).check(sp.tipToken)) {
                 sp.nextToken(); Node.TypeOrVoid.Void} else Type.generateNode(sp)
             val subroutineName = SubroutineName.generateNode(sp)
+            val parametersList = mutableListOf<Node.ParameterDec>()
             Terminal(Symbol.L_PAR_RND).assert(sp.nextToken())
-            val parametersList = ParametersList.generateNode(sp)
-            Terminal(Symbol.R_PAR_RND).assert(sp.nextToken())
+            var curToken = Terminal(Symbol.R_PAR_RND).matchingOrNull(sp.tipToken)
+            if (curToken == Symbol.R_PAR_RND) sp.nextToken()
+            while (curToken != Symbol.R_PAR_RND) {
+                parametersList.add(ParameterDec.generateNode(sp))
+                curToken = Terminal(Symbol.COMMA, Symbol.R_PAR_RND).matchingOrThrow(sp.nextToken())
+            }
             val subroutineBody = SubroutineBody.generateNode(sp)
             return when(subroutineType){
                 Keyword.CTOR -> Node.SubroutineDec.ConstructorDec(typeOrVoid, subroutineName, parametersList, subroutineBody)
@@ -80,18 +92,6 @@ sealed class ProgramStructureVar : Variable(){
                 else -> throw RuntimeException("Shouldn't be else here")
             }
 
-        }
-    }
-
-    object ParametersList : ProgramStructureVar() {
-        override fun generateNode(sp: SyntacticParser): Node.ParametersList? {
-            if (Terminal(Symbol.R_PAR_RND).check(sp.tipToken)) return null
-            val parameterDec = ParameterDec.generateNode(sp)
-            if (Terminal(Symbol.COMMA).check(sp.tipToken)){
-                sp.nextToken()
-                return Node.ParametersList(parameterDec,ParametersList.generateNode(sp))
-            }
-            return Node.ParametersList(parameterDec,null)
         }
     }
 
@@ -106,26 +106,27 @@ sealed class ProgramStructureVar : Variable(){
     object SubroutineBody : ProgramStructureVar() {
         override fun generateNode(sp: SyntacticParser): Node.SubroutineBody {
             Terminal(Symbol.L_PAR_CRL).assert(sp.nextToken())
-            val varDecs = VarDecs.generateNode(sp)
-            val statements = StatementVar.Statements.generateNode(sp)
+            val varDecs = listVarDecs(sp)
+            val statements = listStatements(sp)
             val returnStatements = StatementVar.ReturnStatement.generateNode(sp)
             Terminal(Symbol.R_PAR_CRL).assert(sp.nextToken())
             return Node.SubroutineBody(varDecs, statements, returnStatements)
         }
     }
 
-    object VarDecs : ProgramStructureVar() {
-        override fun generateNode(sp: SyntacticParser): Node.VarDecs? {
-            if (!Terminal(Keyword.VAR).check(sp.tipToken)) return null
-            return Node.VarDecs(VarDec.generateNode(sp),VarDecs.generateNode(sp))
+    fun listVarDecs(sp: SyntacticParser) : List<Node.VarDec>{
+        val varDecsList = mutableListOf<Node.VarDec>()
+        while (Terminal(Keyword.VAR).check(sp.tipToken)){
+            varDecsList.add(VarDec.generateNode(sp))
         }
+        return varDecsList
     }
 
     object VarDec : ProgramStructureVar() {
         override fun generateNode(sp: SyntacticParser): Node.VarDec {
             Terminal(Keyword.VAR).assert(sp.nextToken())
             val type = Type.generateNode(sp)
-            val varNames = VarNames.generateNode(sp)
+            val varNames = listVarNames(sp)
             Terminal(Symbol.SEMI_COL).assert(sp.nextToken())
             return Node.VarDec(type, varNames)
         }
@@ -145,15 +146,13 @@ sealed class ProgramStructureVar : Variable(){
         }
     }
 
-    object VarNames : ProgramStructureVar() {
-        override fun generateNode(sp: SyntacticParser): Node.VarNames {
-            val varName = VarName.generateNode(sp)
-            if (Terminal(Symbol.COMMA).check(sp.tipToken)){
-                sp.nextToken()
-                return Node.VarNames(varName,VarNames.generateNode(sp))
-            }
-            return Node.VarNames(varName,null)
+    fun listVarNames(sp: SyntacticParser) : List<Node.VarName>{
+        val varNamesList = mutableListOf(VarName.generateNode(sp))
+        while (Terminal(Symbol.COMMA).check(sp.tipToken)){
+            sp.nextToken()
+            varNamesList.add(VarName.generateNode(sp))
         }
+        return varNamesList
     }
 
     object VarName : ProgramStructureVar(){
